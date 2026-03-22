@@ -48,6 +48,7 @@
             "resources": [
                 "index.html",
                 "app.js",
+                "lc-engine.js",
                 "style.css",
                 "icon16.png",
                 "icon48.png",

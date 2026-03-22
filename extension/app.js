@@ -50,12 +50,15 @@ const STATE = {
     activeTab: 'deck',
     layerControl: {
         layers: [],
-        selectedLayer: 0
+        selectedLayer: 0,
+        targetInputKey: null,
+        targetInputTitle: '',
+        snapEnabled: true,
+        _syncTimer: null
     }
 };
 
-const LC_COLORS = ['#0000FF','#FF0000','#FFA500','#008000','#FFFF00','#800080','#800000','#40E0D0','#A52A2A','#FF69B4'];
-const LC_SNAP_T = 8;
+const LC_COLORS = ['#0000ff','#ff0000','#ffa500','#008000','#ffff00','#800080','#800000','#40e0d0','#a52a2a','#ff69b4'];
 
 // =============================================
 // INSTANCE MANAGEMENT
@@ -717,8 +720,8 @@ function renderMainInterface() {
                 <!-- DECK + LAYER CONTROL (tabbed) -->
                 <div class="deck-panel">
                     <div class="deck-tabs">
-                        <button class="deck-tab active" id="tabDeck" onclick="switchPanelTab('deck')">${getIcon('grid')} Deck</button>
-                        <button class="deck-tab" id="tabLayers" onclick="switchPanelTab('layers')">${getIcon('layers')} Layer Control</button>
+                        <button class="deck-tab active" id="tabDeck">${getIcon('grid')} Deck</button>
+                        <button class="deck-tab" id="tabLayers">${getIcon('layers')} Live MultiLayer Editor</button>
                     </div>
                     <div class="deck-content" id="deckContent">
                         <div class="deck-header">
@@ -728,18 +731,28 @@ function renderMainInterface() {
                         <div class="deck-grid" id="deck-grid"></div>
                     </div>
                     <div class="layer-content hidden" id="layerContent">
-                        <div class="layer-canvas-wrapper">
-                            <div class="layer-canvas" id="layerCanvas"></div>
+                        <div class="lc-toolbar">
+                            <button class="lc-target-btn" id="lcTargetBtn" title="Selecionar input">${getIcon('monitor')} <span id="lcTargetLabel">Selecionar input...</span></button>
+                            <div class="lc-toolbar-sep"></div>
+                            <button class="lc-snap-toggle active" id="lcSnapToggle" title="Snap magnético">${getIcon('grid')} Snap</button>
+                            <div class="lc-toolbar-sep"></div>
+                            <div class="layer-presets">
+                                <button class="preset-btn" data-preset="5050">50/50</button>
+                                <button class="preset-btn" data-preset="6733">2/3+1/3</button>
+                                <button class="preset-btn" data-preset="3367">1/3+2/3</button>
+                                <button class="preset-btn" data-preset="333">Triple</button>
+                                <button class="preset-btn" data-preset="auto" style="font-weight:800;">AUTO</button>
+                            </div>
                         </div>
-                        <div class="layer-presets">
-                            <span class="layer-presets-label">PRESETS</span>
-                            <button class="preset-btn" onclick="lcApplyPreset('5050')">50/50</button>
-                            <button class="preset-btn" onclick="lcApplyPreset('6733')">2/3 + 1/3</button>
-                            <button class="preset-btn" onclick="lcApplyPreset('3367')">1/3 + 2/3</button>
-                            <button class="preset-btn" onclick="lcApplyPreset('333')">Triple</button>
-                            <button class="preset-btn" onclick="lcApplyPreset('auto')" style="font-weight:800;">AUTO</button>
+                        <div class="lc-main">
+                            <div class="layer-canvas-wrapper">
+                                <div class="layer-canvas" id="layerCanvas"></div>
+                            </div>
+                            <div class="lc-sidebar">
+                                <div class="lc-sidebar-title">LAYERS</div>
+                                <div class="layer-list" id="layerList"></div>
+                            </div>
                         </div>
-                        <div class="layer-list" id="layerList"></div>
                     </div>
                 </div>
 
@@ -1245,6 +1258,24 @@ function setupGlobalEvents() {
             } catch { alert('Erro ao ler JSON'); }
         };
         reader.readAsText(file); e.target.value = '';
+    });
+
+    // --- Tab switching (Deck / Layer Control) ---
+    document.getElementById('tabDeck')?.addEventListener('click', () => switchPanelTab('deck'));
+    document.getElementById('tabLayers')?.addEventListener('click', () => switchPanelTab('layers'));
+
+    // --- Layer Control preset buttons ---
+    document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => {
+        btn.addEventListener('click', () => lcApplyPreset(btn.dataset.preset));
+    });
+
+    // --- Layer Control: target input selector ---
+    document.getElementById('lcTargetBtn')?.addEventListener('click', () => lcShowInputSelector());
+
+    // --- Layer Control: snap toggle ---
+    document.getElementById('lcSnapToggle')?.addEventListener('click', () => {
+        STATE.layerControl.snapEnabled = !STATE.layerControl.snapEnabled;
+        document.getElementById('lcSnapToggle')?.classList.toggle('active', STATE.layerControl.snapEnabled);
     });
 }
 
@@ -1875,7 +1906,7 @@ function restoreSettings() {
 }
 
 // =============================================
-// LAYER CONTROL MODULE
+// LAYER CONTROL MODULE — see lc-engine.js
 // =============================================
 
 function switchPanelTab(tab) {
@@ -1889,392 +1920,21 @@ function switchPanelTab(tab) {
     tabLayers.classList.toggle('active', tab === 'layers');
     deckContent.classList.toggle('hidden', tab !== 'deck');
     layerContent.classList.toggle('hidden', tab !== 'layers');
-    if (tab === 'layers') lcRender();
-}
-
-// --- Layer model helpers ---
-function lcMakeLayer(index) {
-    return {
-        index,
-        inputKey: null,
-        inputTitle: '',
-        color: LC_COLORS[index % LC_COLORS.length],
-        panX: 0, panY: 0,
-        zoomX: 1, zoomY: 1,
-        cropX1: 0, cropY1: 0, cropX2: 1, cropY2: 1,
-        hidden: false
-    };
-}
-
-// --- Coordinate conversion (16:9 canvas) ---
-function lcToC(l, cW, cH) {
-    const cx = (l.panX + 1) / 2 * cW;
-    const cy = (1 - l.panY) / 2 * cH;
-    const Z = l.zoomX;
-    const w = Z * cW * (l.cropX2 - l.cropX1);
-    const h = Z * cH * (l.cropY2 - l.cropY1);
-    return { left: cx - w / 2, top: cy - h / 2, width: w, height: h };
-}
-
-function lcFromC(l, left, top, width, height, cW, cH) {
-    width = Math.max(4, width); height = Math.max(4, height);
-    l.panX = +((left + width / 2) / cW * 2 - 1).toFixed(5);
-    l.panY = +(1 - (top + height / 2) / cH * 2).toFixed(5);
-    const boxW = width / cW, boxH = height / cH;
-    const Z = +(Math.max(boxW, boxH, 0.001).toFixed(5));
-    l.zoomX = Z; l.zoomY = Z;
-    l.cropX1 = +(((1 - (boxW / Z)) / 2).toFixed(5));
-    l.cropX2 = +(1 - l.cropX1).toFixed(5);
-    l.cropY1 = +(((1 - (boxH / Z)) / 2).toFixed(5));
-    l.cropY2 = +(1 - l.cropY1).toFixed(5);
-}
-
-// --- Snap Assist (Center Crop) ---
-function lcCalcSnapAssist(w, h, px, py) {
-    let z = 1, x1 = 0, x2 = 1, y1 = 0, y2 = 1;
-    const sa = 16 / 9, ta = (16 * w) / (9 * h);
-    if (sa > ta) { z = h; const c = (1 - (ta / sa)) / 2; x1 = c; x2 = 1 - c; }
-    else { z = w; const c = (1 - (sa / ta)) / 2; y1 = c; y2 = 1 - c; }
-    return { panX: +px.toFixed(5), panY: +py.toFixed(5), zoom: +z.toFixed(5),
-        cropX1: +x1.toFixed(5), cropX2: +x2.toFixed(5), cropY1: +y1.toFixed(5), cropY2: +y2.toFixed(5) };
-}
-
-function lcApplySnapAssist(l, left, top, w, h) {
-    const px = (left + w / 2) * 2 - 1;
-    const py = 1 - (top + h / 2) * 2;
-    const sa = lcCalcSnapAssist(w, h, px, py);
-    l.panX = sa.panX; l.panY = sa.panY;
-    l.zoomX = sa.zoom; l.zoomY = sa.zoom;
-    l.cropX1 = sa.cropX1; l.cropX2 = sa.cropX2;
-    l.cropY1 = sa.cropY1; l.cropY2 = sa.cropY2;
-}
-
-// --- Presets ---
-const LC_PRESETS = {
-    '5050': [
-        { left: 0, top: 0, width: 0.5, height: 1 },
-        { left: 0.5, top: 0, width: 0.5, height: 1 }
-    ],
-    '6733': [
-        { left: 0, top: 0, width: 2 / 3, height: 1 },
-        { left: 2 / 3, top: 0, width: 1 / 3, height: 1 }
-    ],
-    '3367': [
-        { left: 0, top: 0, width: 1 / 3, height: 1 },
-        { left: 1 / 3, top: 0, width: 2 / 3, height: 1 }
-    ],
-    '333': [
-        { left: 0, top: 0, width: 1 / 3, height: 1 },
-        { left: 1 / 3, top: 0, width: 1 / 3, height: 1 },
-        { left: 2 / 3, top: 0, width: 1 / 3, height: 1 }
-    ]
-};
-
-const LC_AUTO_COLS = [0, 1, 2, 2, 2, 3, 3, 4, 4, 3, 5];
-
-function lcAutoBoxes(N) {
-    const cols = LC_AUTO_COLS[Math.min(N, 10)];
-    const rows = Math.ceil(N / cols);
-    const cw = 1 / cols, ch = 1 / rows;
-    const boxes = [];
-    for (let r = 0; r < rows; r++) {
-        const isLast = r === rows - 1;
-        const cnt = isLast ? (N - cols * (rows - 1)) : cols;
-        const off = (cols - cnt) / 2 * cw;
-        for (let c = 0; c < cnt; c++) boxes.push({ left: off + c * cw, top: r * ch, width: cw, height: ch });
-    }
-    return boxes;
-}
-
-function lcApplyPreset(presetId) {
-    const lc = STATE.layerControl;
-    let boxes;
-    if (presetId === 'auto') {
-        const N = Math.max(lc.layers.filter(l => !l.hidden).length, 1);
-        boxes = lcAutoBoxes(N);
+    if (tab === 'layers') {
+        if (!STATE.layerControl.targetInputKey) {
+            lcShowInputSelector();
+        } else {
+            lcFetchInputLayers().then(() => lcRender());
+        }
+        lcStartSync();
     } else {
-        boxes = LC_PRESETS[presetId];
-        if (!boxes) return;
+        lcStopSync();
     }
-    // Ensure enough layers
-    while (lc.layers.length < boxes.length) lc.layers.push(lcMakeLayer(lc.layers.length));
-    boxes.forEach((b, i) => {
-        const l = lc.layers[i];
-        lcApplySnapAssist(l, b.left, b.top, b.width, b.height);
-        l.hidden = false;
-    });
-    for (let i = boxes.length; i < lc.layers.length; i++) lc.layers[i].hidden = true;
-    lc.selectedLayer = 0;
-    lcRender();
-    lcSendAllToVMix();
 }
 
-// --- Render canvas ---
-let _lcDrag = null;
+// All LC functions are defined in lc-engine.js
 
-function lcRender() {
-    const canvas = document.getElementById('layerCanvas');
-    if (!canvas) return;
-    const cW = canvas.clientWidth;
-    const cH = canvas.clientHeight;
-    if (!cW || !cH) return;
-    canvas.innerHTML = '';
-    const lc = STATE.layerControl;
-
-    lc.layers.forEach((l, i) => {
-        if (l.hidden) return;
-        const b = lcToC(l, cW, cH);
-        const isSel = i === lc.selectedLayer;
-        const box = document.createElement('div');
-        box.className = 'lc-box' + (isSel ? ' selected' : '');
-        box.style.cssText = `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;border-color:${l.color};`;
-        box.innerHTML = `
-            <div class="lc-box-bg" style="background:${l.color};"></div>
-            <div class="lc-box-inner">
-                <div class="lc-box-label">Layer ${i + 1}</div>
-                <div class="lc-box-sublabel">${l.inputTitle || 'Sem input'}</div>
-            </div>`;
-
-        // Click to select
-        box.addEventListener('mousedown', e => {
-            if (e.target.classList.contains('lc-handle')) return;
-            e.preventDefault(); e.stopPropagation();
-            lc.selectedLayer = i;
-            const startX = e.clientX, startY = e.clientY;
-            _lcDrag = { type: 'move', i, sx: startX, sy: startY, b: { ...b }, cW, cH };
-            lcRender();
-        });
-
-        // Drop input onto layer
-        box.addEventListener('dragover', e => { e.preventDefault(); box.classList.add('lc-drop-target'); });
-        box.addEventListener('dragleave', () => box.classList.remove('lc-drop-target'));
-        box.addEventListener('drop', e => {
-            e.preventDefault(); box.classList.remove('lc-drop-target');
-            try {
-                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                if (data && data.key) {
-                    l.inputKey = data.key;
-                    l.inputTitle = data.shortTitle || data.title || '';
-                    lcRender();
-                    lcSendToVMix(l);
-                }
-            } catch {}
-        });
-
-        // Resize handles (only for selected)
-        if (isSel) {
-            ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].forEach(h => {
-                const handle = document.createElement('div');
-                handle.className = `lc-handle ${h}`;
-                handle.addEventListener('mousedown', e => {
-                    e.preventDefault(); e.stopPropagation();
-                    const isCorner = h.length === 2;
-                    _lcDrag = {
-                        type: isCorner ? 'resize' : 'edge-resize',
-                        h, i, sx: e.clientX, sy: e.clientY, ...b, ar: b.width / b.height, cW, cH,
-                        initCropX1: l.cropX1, initCropX2: l.cropX2, initCropY1: l.cropY1, initCropY2: l.cropY2,
-                        initPanX: l.panX, initPanY: l.panY, initZoomX: l.zoomX, initZoomY: l.zoomY
-                    };
-                });
-                box.appendChild(handle);
-            });
-        }
-        canvas.appendChild(box);
-    });
-
-    // Render layer list chips
-    lcRenderLayerList();
-}
-
-function lcRenderLayerList() {
-    const container = document.getElementById('layerList');
-    if (!container) return;
-    const lc = STATE.layerControl;
-    container.innerHTML = '<span class="layer-presets-label">LAYERS</span>';
-    lc.layers.forEach((l, i) => {
-        if (l.hidden) return;
-        const chip = document.createElement('div');
-        chip.className = 'lc-chip' + (i === lc.selectedLayer ? ' selected' : '');
-        chip.innerHTML = `
-            <div class="lc-chip-color" style="background:${l.color};"></div>
-            <span class="lc-chip-name">${i + 1}</span>
-            <span class="lc-chip-input">${l.inputTitle || '—'}</span>
-            <span class="lc-chip-remove" data-idx="${i}">&times;</span>`;
-        chip.addEventListener('click', e => {
-            if (e.target.classList.contains('lc-chip-remove')) {
-                lc.layers.splice(i, 1);
-                lc.layers.forEach((ll, j) => { ll.index = j; ll.color = LC_COLORS[j % LC_COLORS.length]; });
-                if (lc.selectedLayer >= lc.layers.length) lc.selectedLayer = Math.max(0, lc.layers.length - 1);
-                lcRender();
-                return;
-            }
-            lc.selectedLayer = i;
-            lcRender();
-        });
-
-        // Drop input onto chip
-        chip.addEventListener('dragover', e => { e.preventDefault(); chip.classList.add('lc-drop-target'); });
-        chip.addEventListener('dragleave', () => chip.classList.remove('lc-drop-target'));
-        chip.addEventListener('drop', e => {
-            e.preventDefault(); chip.classList.remove('lc-drop-target');
-            try {
-                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                if (data && data.key) {
-                    l.inputKey = data.key;
-                    l.inputTitle = data.shortTitle || data.title || '';
-                    lcRender();
-                    lcSendToVMix(l);
-                }
-            } catch {}
-        });
-        container.appendChild(chip);
-    });
-    // Add layer button
-    const addBtn = document.createElement('div');
-    addBtn.className = 'lc-chip lc-chip-add';
-    addBtn.textContent = '+ Layer';
-    addBtn.addEventListener('click', () => {
-        if (lc.layers.length >= 10) return;
-        lc.layers.push(lcMakeLayer(lc.layers.length));
-        lc.selectedLayer = lc.layers.length - 1;
-        lcRender();
-    });
-    container.appendChild(addBtn);
-}
-
-// --- Mouse drag handling ---
-document.addEventListener('mousemove', e => {
-    if (!_lcDrag) return;
-    const dx = e.clientX - _lcDrag.sx;
-    const dy = e.clientY - _lcDrag.sy;
-    const l = STATE.layerControl.layers[_lcDrag.i];
-    const { cW, cH } = _lcDrag;
-
-    if (_lcDrag.type === 'move') {
-        const nl = _lcDrag.b.left + dx;
-        const nt = _lcDrag.b.top + dy;
-        lcFromC(l, nl, nt, _lcDrag.b.width, _lcDrag.b.height, cW, cH);
-        lcRender(); lcThrottleSend(l);
-        return;
-    }
-
-    if (_lcDrag.type === 'resize') {
-        let { left: lt, top: tp, width: wd, height: ht, ar, h } = _lcDrag;
-        let r = lt + wd, b = tp + ht;
-        let newW;
-        if (h === 'se' || h === 'ne') { newW = Math.max(8, wd + dx); } else { newW = Math.max(8, wd - dx); }
-        const newH = newW / ar;
-        if (h === 'se') { r = lt + newW; b = tp + newH; }
-        else if (h === 'sw') { lt = r - newW; b = tp + newH; }
-        else if (h === 'ne') { r = lt + newW; tp = b - newH; }
-        else if (h === 'nw') { lt = r - newW; tp = b - newH; }
-        lcFromC(l, lt, tp, r - lt, b - tp, cW, cH);
-        lcRender(); lcThrottleSend(l);
-    }
-
-    if (_lcDrag.type === 'edge-resize') {
-        const { h, initCropX1: ic1, initCropX2: ic2, initCropY1: iy1, initCropY2: iy2,
-            initPanX: ipx, initPanY: ipy, initZoomX: izx, initZoomY: izy } = _lcDrag;
-        const sym = e.shiftKey;
-        const fullW = izx * cW, fullH = izy * cH;
-        const minF = 4 / fullW, minFy = 4 / fullH;
-        const { left: lt0, top: tp0, width: wd0, height: ht0 } = _lcDrag;
-
-        if (h === 'e') {
-            const eDx = dx;
-            const dCrop = eDx / fullW;
-            if (sym) {
-                let newC1 = Math.max(0, ic1 - dCrop), newC2 = Math.min(1, ic2 + dCrop);
-                if (newC2 - newC1 < minF) { newC2 = ic2; newC1 = ic1; }
-                l.cropX1 = +newC1.toFixed(5); l.cropX2 = +newC2.toFixed(5); l.panX = ipx; l.panY = ipy;
-            } else {
-                const clamped = Math.min(1, Math.max(ic1 + minF, ic2 + dCrop));
-                const effDelta = (clamped - ic2) * fullW;
-                l.cropX2 = +clamped.toFixed(5); l.cropX1 = ic1;
-                l.panX = +(ipx + effDelta / cW).toFixed(5); l.panY = ipy;
-            }
-        } else if (h === 'w') {
-            const eDx = dx;
-            const dCrop = eDx / fullW;
-            if (sym) {
-                let newC1 = Math.max(0, ic1 + dCrop), newC2 = Math.min(1, ic2 - dCrop);
-                if (newC2 - newC1 < minF) { newC1 = ic1; newC2 = ic2; }
-                l.cropX1 = +newC1.toFixed(5); l.cropX2 = +newC2.toFixed(5); l.panX = ipx; l.panY = ipy;
-            } else {
-                const clamped = Math.max(0, Math.min(ic2 - minF, ic1 + dCrop));
-                const effDelta = (clamped - ic1) * fullW;
-                l.cropX1 = +clamped.toFixed(5); l.cropX2 = ic2;
-                l.panX = +(ipx + effDelta / cW).toFixed(5); l.panY = ipy;
-            }
-        } else if (h === 's') {
-            const eDy = dy;
-            const dCrop = eDy / fullH;
-            if (sym) {
-                let newC1 = Math.max(0, iy1 - dCrop), newC2 = Math.min(1, iy2 + dCrop);
-                if (newC2 - newC1 < minFy) { newC2 = iy2; newC1 = iy1; }
-                l.cropY1 = +newC1.toFixed(5); l.cropY2 = +newC2.toFixed(5); l.panX = ipx; l.panY = ipy;
-            } else {
-                const clamped = Math.min(1, Math.max(iy1 + minFy, iy2 + dCrop));
-                const effDelta = (clamped - iy2) * fullH;
-                l.cropY2 = +clamped.toFixed(5); l.cropY1 = iy1;
-                l.panY = +(ipy - effDelta / cH).toFixed(5); l.panX = ipx;
-            }
-        } else if (h === 'n') {
-            const eDy = dy;
-            const dCrop = eDy / fullH;
-            if (sym) {
-                let newC1 = Math.max(0, iy1 + dCrop), newC2 = Math.min(1, iy2 - dCrop);
-                if (newC2 - newC1 < minFy) { newC1 = iy1; newC2 = iy2; }
-                l.cropY1 = +newC1.toFixed(5); l.cropY2 = +newC2.toFixed(5); l.panX = ipx; l.panY = ipy;
-            } else {
-                const clamped = Math.max(0, Math.min(iy2 - minFy, iy1 + dCrop));
-                const effDelta = (clamped - iy1) * fullH;
-                l.cropY1 = +clamped.toFixed(5); l.cropY2 = iy2;
-                l.panY = +(ipy - effDelta / cH).toFixed(5); l.panX = ipx;
-            }
-        }
-        l.zoomX = izx; l.zoomY = izy;
-        lcRender(); lcThrottleSend(l);
-    }
-});
-
-document.addEventListener('mouseup', () => {
-    if (_lcDrag) { _lcDrag = null; }
-});
-
-// --- vMix API Sync ---
-let _lcSendTimer = null;
-const LC_THROTTLE_MS = 50;
-
-function lcSendToVMix(layer) {
-    if (!layer.inputKey) return;
-    const inst = getActiveInstance();
-    if (!inst || inst.status !== 'online') return;
-    const params = new URLSearchParams({
-        Function: 'SetInputPosition',
-        Input: layer.inputKey,
-        PanX: layer.panX,
-        PanY: layer.panY,
-        ZoomX: layer.zoomX,
-        ZoomY: layer.zoomY,
-        CropX1: layer.cropX1,
-        CropY1: layer.cropY1,
-        CropX2: layer.cropX2,
-        CropY2: layer.cropY2
-    });
-    fetch(`http://${inst.host}:${inst.port}/api?${params}`).catch(() => {});
-}
-
-function lcThrottleSend(layer) {
-    if (_lcSendTimer) return;
-    _lcSendTimer = setTimeout(() => { _lcSendTimer = null; }, LC_THROTTLE_MS);
-    lcSendToVMix(layer);
-}
-
-function lcSendAllToVMix() {
-    STATE.layerControl.layers.forEach(l => { if (!l.hidden) lcSendToVMix(l); });
-}
-
+// =============================================
 // =============================================
 // INIT
 // =============================================
@@ -2321,11 +1981,13 @@ async function init() {
     setupGlobalEvents();
     restoreSettings();
 
-    // Initialize layer control with 2 default layers (50/50)
+    // Initialize layer control with 10 empty layers
     if (STATE.layerControl.layers.length === 0) {
-        STATE.layerControl.layers.push(lcMakeLayer(0));
-        STATE.layerControl.layers.push(lcMakeLayer(1));
-        lcApplyPreset('5050');
+        for (let i = 0; i < 10; i++) {
+            const l = lcMakeLayer(i);
+            l.hidden = true;
+            STATE.layerControl.layers.push(l);
+        }
     }
 
     await Promise.all(STATE.instances.map(i => fetchVMixData(i)));
