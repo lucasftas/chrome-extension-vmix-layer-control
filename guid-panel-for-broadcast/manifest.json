@@ -1,0 +1,61 @@
+{
+    "manifest_version": 3,
+    "name": "GUID Panel for Broadcast",
+    "version": "1.0",
+    "description": "Painel visual multi-instância para vMix com grid de botões, descoberta de rede e integração com Companion",
+    "icons": {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    },
+    "permissions": [
+        "storage",
+        "tabs"
+    ],
+    "host_permissions": [
+        "http://*/*",
+        "https://*/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "action": {
+        "default_title": "GUID Panel for Broadcast",
+        "default_icon": {
+            "16": "icon16.png",
+            "48": "icon48.png",
+            "128": "icon128.png"
+        }
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "http://*:8088/api",
+                "http://*:8088/api*",
+                "http://*:8089/api",
+                "http://*:8089/api*",
+                "http://*:8090/api",
+                "http://*:8090/api*"
+            ],
+            "js": [
+                "loader.js"
+            ],
+            "run_at": "document_end"
+        }
+    ],
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "index.html",
+                "app.js",
+                "style.css",
+                "icon16.png",
+                "icon48.png",
+                "icon128.png"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ]
+}
