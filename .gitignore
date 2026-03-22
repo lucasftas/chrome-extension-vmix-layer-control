@@ -1,0 +1,15 @@
+# IDE
+*.code-workspace
+.vscode/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Chrome Extension dev tools
+chrome-store-guide.html
+store-screenshots.html
+
+# Dependencies
+node_modules/
