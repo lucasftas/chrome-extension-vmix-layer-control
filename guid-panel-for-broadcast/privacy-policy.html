@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — GUID Panel for Broadcast</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            color: #1a1a1a;
+            line-height: 1.7;
+        }
+
+        header {
+            background: #6366f1;
+            color: #fff;
+            padding: 40px 24px 32px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        header p {
+            font-size: 14px;
+            opacity: .85;
+        }
+
+        main {
+            max-width: 740px;
+            margin: 40px auto;
+            padding: 0 24px 60px;
+        }
+
+        section {
+            margin-bottom: 36px;
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #6366f1;
+            border-left: 4px solid #6366f1;
+            padding-left: 12px;
+            margin-bottom: 12px;
+        }
+
+        p,
+        li {
+            font-size: 15px;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        .highlight {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-top: 8px;
+            font-size: 15px;
+            color: #065f46;
+            font-weight: 500;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 13px;
+            color: #9ca3af;
+            padding: 24px;
+            border-top: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>GUID Panel for Broadcast</h1>
+        <p>Privacy Policy</p>
+    </header>
+
+    <main>
+
+        <section>
+            <h2>Overview</h2>
+            <p>
+                <strong>GUID Panel for Broadcast</strong> is a Google Chrome extension that connects to the
+                local vMix API (running on your own network) to display a visual button grid of your
+                vMix inputs. This privacy policy explains what data the extension accesses, how it is
+                used, and our commitment to your privacy.
+            </p>
+            <div class="highlight">
+                🔒 This extension does not collect, transmit, or store any personal data on external servers.
+                Everything runs 100% locally on your own machine and network.
+            </div>
+        </section>
+
+        <section>
+            <h2>What Data Does the Extension Access?</h2>
+            <ul>
+                <li>
+                    <strong>Local network IP addresses:</strong> The extension sends HTTP requests to
+                    IP addresses on your local network (e.g., <code>192.168.x.x</code>) to communicate
+                    with the vMix Web API. These IPs are entered manually by you or discovered via a
+                    local subnet scan that you initiate.
+                </li>
+                <li>
+                    <strong>vMix API data:</strong> The extension reads the XML output of the vMix API
+                    (input names, GUIDs, status, version information) solely to render the control panel
+                    interface.
+                </li>
+                <li>
+                    <strong>Browser local storage:</strong> Connection settings, button layouts, and
+                    user preferences are saved in your browser's <code>localStorage</code>. This data
+                    never leaves your device.
+                </li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>What Data Is NOT Collected?</h2>
+            <ul>
+                <li>No personally identifiable information (name, email, location) is collected.</li>
+                <li>No usage analytics or telemetry is sent anywhere.</li>
+                <li>No data is shared with third parties — ever.</li>
+                <li>No external servers, cloud services, or APIs are contacted by this extension.</li>
+                <li>No cookies are created beyond what the browser itself manages locally.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Network Permissions</h2>
+            <p>
+                The extension declares <code>host_permissions</code> for <code>http://*/*</code> in its
+                manifest. This permission is required exclusively to allow the extension to contact
+                vMix instances running on arbitrary local IP addresses within your private network.
+            </p>
+            <p>
+                All network requests made by this extension are directed only to addresses that you
+                explicitly configure or that are scanned on your local subnet at your request.
+                No requests are made to the public internet.
+            </p>
+        </section>
+
+        <section>
+            <h2>Data Storage</h2>
+            <p>
+                All data (saved connections, deck layouts, preferences) is stored exclusively in the
+                browser's <code>localStorage</code> on your local machine. You can view, edit, or
+                delete this data at any time through the built-in <strong>⚙️ Config Panel</strong>
+                inside the extension.
+            </p>
+        </section>
+
+        <section>
+            <h2>Changes to This Policy</h2>
+            <p>
+                If this policy is updated, the new version will be published at this same URL.
+                We encourage you to review it periodically. Continued use of the extension
+                constitutes acceptance of any changes.
+            </p>
+        </section>
+
+        <section>
+            <h2>Contact</h2>
+            <p>
+                If you have any questions about this privacy policy, please open an issue on the
+                <a href="https://github.com/lucasftas/guid-panel-for-broadcast" target="_blank">
+                    GitHub repository
+                </a>.
+            </p>
+        </section>
+
+    </main>
+
+    <footer>
+        Last updated: February 2026 &nbsp;·&nbsp; GUID Panel for Broadcast &nbsp;·&nbsp; MIT License
+    </footer>
+
+</body>
+
+</html>
