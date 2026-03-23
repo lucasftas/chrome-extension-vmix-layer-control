@@ -2245,6 +2245,22 @@ body {
 }
 .lc-sync-btn:hover { background: #1e3a5f; color: #fff; }
 
+.lc-trim-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #252540;
+    border: 1px solid #f59e0b;
+    color: #fbbf24;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.lc-trim-btn:hover { background: #3d2e0a; color: #fff; }
+
 /* Input selector modal list */
 .lc-input-list {
     max-height: 400px;

@@ -735,6 +735,7 @@ function renderMainInterface() {
                             <div class="lc-toolbar-sep"></div>
                             <button class="lc-snap-toggle active" id="lcSnapToggle" title="Snap magnético">${getIcon('grid')} Snap</button>
                             <button class="lc-sync-btn" id="lcSyncBtn" title="Liga todos os 10 checkboxes no vMix e no app de uma vez, sincronizando o estado de visibilidade">Sync Layers</button>
+                            <button class="lc-trim-btn" id="lcTrimBtn" title="Corta as layers que extrapolam o canvas e resolve sobreposições. Layers com index maior têm prioridade visual (layer 10 = topo, layer 1 = base). Útil após mover layers livremente.">Aparar</button>
                             <div class="lc-toolbar-sep"></div>
                             <div class="layer-presets">
                                 <span class="lc-presets-label">SPLIT</span>
@@ -1275,6 +1276,9 @@ function setupGlobalEvents() {
 
     // --- Layer Control: Sync Layers button ---
     document.getElementById('lcSyncBtn')?.addEventListener('click', () => lcSyncAllLayers());
+
+    // --- Layer Control: Aparar button ---
+    document.getElementById('lcTrimBtn')?.addEventListener('click', () => lcTrimLayers());
 
     // --- Layer Control: mode toggle (SIM / PGM) ---
     document.getElementById('lcModeToggle')?.addEventListener('click', () => {

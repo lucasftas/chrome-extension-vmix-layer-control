@@ -31,6 +31,10 @@ function lcMakeLayer(index) {
 // CORE MATH (SplitView Engine)
 // =============================================
 
+// vMix renderer offset compensation (~31px overlap at 1920x1080)
+const LC_CROP_OFFSET_X = 0.016; // 31/1920
+const LC_CROP_OFFSET_Y = 0.029; // 31/1080
+
 // Normalized (0-1) → vMix API values
 function lcToVMix(l) {
     const Z = Math.max(l.w, l.h);
@@ -43,9 +47,9 @@ function lcToVMix(l) {
         panY: +panY.toFixed(6),
         zoom: +Z.toFixed(6),
         cropX1: +cropX.toFixed(6),
-        cropX2: +(1 - cropX).toFixed(6),
+        cropX2: +(1 - cropX - (cropX > 0.001 ? LC_CROP_OFFSET_X : 0)).toFixed(6),
         cropY1: +cropY.toFixed(6),
-        cropY2: +(1 - cropY).toFixed(6)
+        cropY2: +(1 - cropY - (cropY > 0.001 ? LC_CROP_OFFSET_Y : 0)).toFixed(6)
     };
 }
 
@@ -153,13 +157,17 @@ function lcApplyPreset(presetId) {
 
     lc.selectedLayer = 0;
     lcRender();
-    // Assign + send positions for active layers
-    lc.layers.forEach(l => {
-        if (!l.hidden && l.inputKey) {
-            lcAssignLayerInput(l.index, l.inputKey);
-            setTimeout(() => lcSendToVMix(l), 100);
-        }
-    });
+    // Debounce: cancel pending preset sends, wait before sending
+    if (lcApplyPreset._timer) clearTimeout(lcApplyPreset._timer);
+    _lcPendingLayers.clear();
+    lcApplyPreset._timer = setTimeout(() => {
+        lc.layers.forEach(l => {
+            if (!l.hidden && l.inputKey) {
+                lcAssignLayerInput(l.index, l.inputKey);
+                setTimeout(() => lcSendToVMix(l), 150);
+            }
+        });
+    }, 300);
 }
 
 // =============================================
@@ -712,6 +720,108 @@ function lcThrottleSend(layer) { lcSendToVMix(layer); }
 
 function lcSendAllToVMix() {
     STATE.layerControl.layers.forEach(l => { if (!l.hidden && l.inputKey) lcSendToVMix(l); });
+}
+
+// Trim layers: read vMix XML, crop what exceeds canvas, send crop-only updates
+// PanX/PanY/Zoom don't change — only CropX1/X2/Y1/Y2 are adjusted
+// vMix renderer expands each crop edge ~15.5px (31px total gap needed between layers)
+const LC_RENDERER_GAP = 31;
+
+async function lcTrimLayers() {
+    const lc = STATE.layerControl;
+    const inst = getActiveInstance();
+    if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
+
+    const res = await fetch(`http://${inst.host}:${inst.port}/api`, { signal: AbortSignal.timeout(5000) });
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
+    const inputEl = Array.from(doc.getElementsByTagName('input')).find(el => el.getAttribute('key') === lc.targetInputKey);
+    if (!inputEl) return;
+
+    const base = `http://${inst.host}:${inst.port}/api`;
+    const tk = lc.targetInputKey;
+    const W = 1920, H = 1080;
+    const GAP = LC_RENDERER_GAP;
+
+    // Parse all overlays into working objects
+    const layers = [];
+    Array.from(inputEl.getElementsByTagName('overlay')).forEach(ov => {
+        const idx = parseInt(ov.getAttribute('index'));
+        const key = ov.getAttribute('key');
+        if (!key) return;
+        const posEl = ov.getElementsByTagName('position')[0];
+        const cropEl = ov.getElementsByTagName('crop')[0];
+        layers.push({
+            idx,
+            x: posEl ? parseFloat(posEl.getAttribute('x') || '0') : 0,
+            y: posEl ? parseFloat(posEl.getAttribute('y') || '0') : 0,
+            w: posEl ? parseFloat(posEl.getAttribute('width') || String(W)) : W,
+            h: posEl ? parseFloat(posEl.getAttribute('height') || String(H)) : H,
+            cX1: cropEl ? parseFloat(cropEl.getAttribute('X1') || '0') : 0,
+            cX2: cropEl ? parseFloat(cropEl.getAttribute('X2') || '1') : 1,
+            cY1: cropEl ? parseFloat(cropEl.getAttribute('Y1') || '0') : 0,
+            cY2: cropEl ? parseFloat(cropEl.getAttribute('Y2') || '1') : 1,
+            changed: false
+        });
+    });
+
+    // Step 1: Trim each layer to canvas bounds
+    for (const l of layers) {
+        const visL = l.x + (l.cX1 * l.w);
+        const visR = l.x + (l.cX2 * l.w);
+        const visT = l.y + (l.cY1 * l.h);
+        const visB = l.y + (l.cY2 * l.h);
+
+        // Left/top: trim exact (no GAP needed at canvas origin)
+        if (visL < 0) { l.cX1 = +(l.cX1 + (-visL / l.w)).toFixed(6); l.changed = true; }
+        if (visT < 0) { l.cY1 = +(l.cY1 + (-visT / l.h)).toFixed(6); l.changed = true; }
+        // Right/bottom: trim with renderer GAP compensation
+        if (visR > W - GAP) { l.cX2 = +(l.cX2 - ((visR - W + GAP) / l.w)).toFixed(6); l.changed = true; }
+        if (visB > H - GAP) { l.cY2 = +(l.cY2 - ((visB - H + GAP) / l.h)).toFixed(6); l.changed = true; }
+    }
+
+    // Step 2: Resolve overlaps (higher index = priority, rendered on top)
+    const sorted = [...layers].sort((a, b) => b.idx - a.idx);
+    for (let ti = 0; ti < sorted.length; ti++) {
+        const top = sorted[ti];
+        // Top layer's visible rect (after trim)
+        const topL = top.x + (top.cX1 * top.w);
+        const topR = top.x + (top.cX2 * top.w);
+
+        for (let bi = ti + 1; bi < sorted.length; bi++) {
+            const bot = sorted[bi];
+            const botL = bot.x + (bot.cX1 * bot.w);
+            const botR = bot.x + (bot.cX2 * bot.w);
+
+            // Check overlap including renderer GAP
+            if (botR > topL - GAP && botL < topR + GAP) {
+                // Trim bottom layer — choose side with least loss
+                const trimFromRight = botR - (topL - GAP);
+                const trimFromLeft = (topR + GAP) - botL;
+
+                if (trimFromRight < trimFromLeft) {
+                    bot.cX2 = +((topL - GAP - bot.x) / bot.w).toFixed(6);
+                } else {
+                    bot.cX1 = +((topR + GAP - bot.x) / bot.w).toFixed(6);
+                }
+                bot.changed = true;
+            }
+        }
+    }
+
+    // Step 3: Send updated crops
+    for (const l of layers) {
+        if (l.changed) {
+            const N = l.idx + 1;
+            await fetch(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${l.cX1}`);
+            await fetch(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${l.cX2}`);
+            await fetch(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${l.cY1}`);
+            await fetch(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${l.cY2}`);
+        }
+    }
+
+    await lcFetchInputLayers();
+    lcRender();
+    showToast('Layers aparadas');
 }
 
 // Sync all 10 layers: turn ON all checkboxes in vMix and app
