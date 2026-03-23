@@ -2380,20 +2380,49 @@ body {
     margin-left: auto;
 }
 .preset-btn {
-    padding: 3px 8px;
-    font-size: 10px;
-    font-weight: 600;
+    padding: 3px;
     border: 1px solid #3a3a5a;
     border-radius: 4px;
-    background: #252540;
+    background: #1a1a2e;
     cursor: pointer;
-    color: #c8cdd8;
     transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.preset-btn svg {
+    width: 36px;
+    height: 20px;
+    display: block;
 }
 .preset-btn:hover {
-    background: var(--accent-orange);
-    color: #fff;
     border-color: var(--accent-orange);
+    background: #252540;
+}
+
+.lc-presets-label {
+    font-size: 8px;
+    color: #5a6278;
+    font-weight: 700;
+    letter-spacing: .5px;
+}
+
+.lc-mode-toggle {
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 800;
+    border: 1px solid #005c2a;
+    border-radius: 4px;
+    background: #003318;
+    color: #00ff73;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.lc-mode-toggle:hover { background: #004422; }
+.lc-mode-toggle.pgm {
+    background: #3d0000;
+    border-color: #ff0000;
+    color: #ff4444;
 }
 
 /* Layer list chips */
@@ -2457,3 +2486,4 @@ body {
 }
 .lc-layer-select:focus { border-color: var(--accent-orange); }
 .lc-layer-row.empty .lc-layer-select { color: var(--text-muted); }
+

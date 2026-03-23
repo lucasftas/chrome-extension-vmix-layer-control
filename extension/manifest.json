@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "GUID Panel for Broadcast",
-    "version": "1.0",
-    "description": "Painel visual multi-instância para vMix com grid de botões, descoberta de rede e integração com Companion",
+    "name": "vMix Layer Control",
+    "version": "0.9.0",
+    "description": "Controle visual de layers e multiview ao vivo para vMix — grid de botões, editor de layers e integração com Companion",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
@@ -20,7 +20,7 @@
         "service_worker": "background.js"
     },
     "action": {
-        "default_title": "GUID Panel for Broadcast",
+        "default_title": "vMix Layer Control",
         "default_icon": {
             "16": "icon16.png",
             "48": "icon48.png",

@@ -5,30 +5,41 @@ Extensão Chrome para controle visual ao vivo de layers do vMix via API HTTP.
 ## Estrutura
 
 ```
-extension/       # Chrome Extension (Manifest V3)
-  app.js         # Lógica principal (GUID Panel + Layer Control)
-  style.css      # Estilos
-  index.html     # Entry point
-  manifest.json  # Chrome extension manifest
-  loader.js      # Content script (injeta em páginas vMix API)
-  background.js  # Service worker
+extension/
+  app.js           # UI principal (GUID Panel, tabs, sidebar, inputs, events)
+  lc-engine.js     # Motor SplitView (math, render, drag, presets, API sync)
+  style.css        # Estilos
+  index.html       # Entry point (carrega lc-engine.js antes de app.js)
+  manifest.json    # Chrome Extension Manifest V3
+  loader.js        # Content script (injeta em páginas vMix API)
+  background.js    # Service worker
+  privacy-policy.html  # Privacy policy (Chrome Web Store)
 ```
 
-## Arquitetura
+## vMix API (validada no vMix 29 4K)
 
-- **Single-page app** embutida em Chrome Extension
-- Conecta via HTTP GET/POST à API REST do vMix (`http://<ip>:8088/api`)
-- Duas abas centrais: **Deck** (grid de botões GUID) e **Layer Control** (canvas 16:9 ao vivo)
-- Layer Control envia `SetInputPosition` para o vMix em tempo real
+- GET `/api` — Estado completo XML (inputs, overlays, position, crop)
+- `SetLayer{N}PanX`, `SetLayer{N}PanY`, `SetLayer{N}Zoom` — posição da layer N
+- `SetLayer{N}CropX1`, `SetLayer{N}CropX2`, `SetLayer{N}CropY1`, `SetLayer{N}CropY2` — crop
+- `SetMultiViewOverlay` — atribuir input a layer slot
+- `MultiViewOverlayOn` / `MultiViewOverlayOff` — visibilidade
+- **Border via API NÃO existe** no vMix 29 (testado exaustivamente)
 
-## vMix API
+## SplitView Math (center crop)
 
-- GET `/api` — Estado completo (XML)
-- GET `/api?Function=SetInputPosition&Input=<key>&Value=<params>` — Posicionar layer
-- Parâmetros de posição: `PanX`, `PanY`, `ZoomX`, `ZoomY`, `CropX1`, `CropY1`, `CropX2`, `CropY2`
+Estado normalizado (0-1): x, y, w, h
 
-## Coordenadas vMix
+```
+Z = max(w, h)
+PanX = (x + w/2) * 2 - 1
+PanY = 1 - (y + h/2) * 2
+CropX = (Z - w) / 2 / Z  →  CropX1 = CropX, CropX2 = 1 - CropX
+CropY = (Z - h) / 2 / Z  →  CropY1 = CropY, CropY2 = 1 - CropY
+```
 
-- **PanX/PanY**: -2 a 2 (0 = centro)
-- **ZoomX/ZoomY**: escala (1.0 = tela cheia)
-- **CropX1/Y1/X2/Y2**: recorte 0-1 (0,0,1,1 = sem corte)
+## Convenções
+
+- `_userHidden` flag: previne sync bidirecional de reativar layers que o usuário desligou
+- `_posSet` flag: indica que a layer tem posição definida (não sobrescrever com dados do vMix)
+- API dispatch: fila sequencial `_flushVMix()` com await (não paralelo)
+- O input alvo é filtrado dos dropdowns (não pode ser layer de si mesmo)
