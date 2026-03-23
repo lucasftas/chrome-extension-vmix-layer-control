@@ -734,6 +734,7 @@ function renderMainInterface() {
                             <button class="lc-target-btn" id="lcTargetBtn" title="Selecionar input">${getIcon('monitor')} <span id="lcTargetLabel">Selecionar input...</span></button>
                             <div class="lc-toolbar-sep"></div>
                             <button class="lc-snap-toggle active" id="lcSnapToggle" title="Snap magnético">${getIcon('grid')} Snap</button>
+                            <button class="lc-sync-btn" id="lcSyncBtn" title="Liga todos os 10 checkboxes no vMix e no app de uma vez, sincronizando o estado de visibilidade">Sync Layers</button>
                             <div class="lc-toolbar-sep"></div>
                             <div class="layer-presets">
                                 <span class="lc-presets-label">SPLIT</span>
@@ -1271,6 +1272,9 @@ function setupGlobalEvents() {
         STATE.layerControl.snapEnabled = !STATE.layerControl.snapEnabled;
         document.getElementById('lcSnapToggle')?.classList.toggle('active', STATE.layerControl.snapEnabled);
     });
+
+    // --- Layer Control: Sync Layers button ---
+    document.getElementById('lcSyncBtn')?.addEventListener('click', () => lcSyncAllLayers());
 
     // --- Layer Control: mode toggle (SIM / PGM) ---
     document.getElementById('lcModeToggle')?.addEventListener('click', () => {

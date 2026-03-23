@@ -22,7 +22,8 @@ function lcMakeLayer(index) {
         color: LC_COLORS[index % LC_COLORS.length],
         x: 0, y: 0, w: 1, h: 1,
         hidden: true,
-        _posSet: false
+        _posSet: false,
+        _knownState: false
     };
 }
 
@@ -125,7 +126,8 @@ function lcApplyPreset(presetId) {
         withInput.forEach((l, i) => {
             l.x = boxes[i].x; l.y = boxes[i].y;
             l.w = boxes[i].w; l.h = boxes[i].h;
-            l.hidden = false; l._posSet = true;        });
+            l.hidden = false; l._posSet = true; l._knownState = true; l._checkOff = false;
+        });
         // Hide layers beyond count — remove from vMix
         lc.layers.forEach(l => {
             if (!withInput.includes(l)) {
@@ -141,9 +143,9 @@ function lcApplyPreset(presetId) {
             if (i < boxes.length) {
                 l.x = boxes[i].x; l.y = boxes[i].y;
                 l.w = boxes[i].w; l.h = boxes[i].h;
-                l.hidden = false; l._posSet = true;
+                l.hidden = false; l._posSet = true; l._knownState = true; l._checkOff = false;
             } else {
-                l.hidden = true;
+                l.hidden = true; l._knownState = true; l._checkOff = true;
                 if (l.inputKey) { l._savedKey = l.inputKey; lcRemoveLayerInput(l.index); }
             }
         }
@@ -303,7 +305,11 @@ function lcUpdateRowVisuals() {
         const num = row.querySelector('.lc-layer-num');
         if (num) num.style.background = has && !l.hidden ? l.color : '#333';
         const check = row.querySelector('.lc-layer-check');
-        if (check) { check.checked = !l.hidden || !has; check.disabled = false; }
+        if (check) {
+            check.indeterminate = !l._knownState;
+            check.checked = l._knownState ? !l.hidden : false;
+            check.disabled = false;
+        }
     });
 }
 
@@ -350,7 +356,8 @@ function _lcRenderBoxes(canvas, lc, cW, cH) {
                 if (data && data.key) {
                     l.inputKey = data.key;
                     l.inputTitle = data.shortTitle || data.title || '';
-                    l.hidden = false;                    lc.selectedLayer = i;
+                    l.hidden = false; l._knownState = true; l._checkOff = false;
+                    lc.selectedLayer = i;
                     lcAssignLayerInput(l.index, data.key);
                     lcRender(); lcSendToVMix(l);
                 }
@@ -478,21 +485,31 @@ function lcRenderLayerList() {
         check.className = 'lc-layer-check';
         check.id = `lc-check-${i}`;
         check.name = `layer-vis-${i}`;
-        check.checked = !l.hidden || !has;
+        // Indeterminate (—): state unknown from vMix until first interaction
+        check.indeterminate = !l._knownState;
+        check.checked = l._knownState ? !l.hidden : false;
         check.disabled = false;
         check.addEventListener('click', e => e.stopPropagation());
         check.addEventListener('change', () => {
-            l.hidden = !check.checked;
-            if (l.inputKey) {
-                const base = `http://${getActiveInstance()?.host}:${getActiveInstance()?.port}/api`;
-                const N = l.index + 1;
-                const tk = STATE.layerControl.targetInputKey;
+            const inst = getActiveInstance();
+            if (!inst) return;
+            const base = `http://${inst.host}:${inst.port}/api`;
+            const N = l.index + 1;
+            const tk = STATE.layerControl.targetInputKey;
+
+            if (!l._knownState) {
+                // First click on indeterminate → turn ON
+                l._knownState = true;
+                l._checkOff = false;
+                l.hidden = false;
+                fetch(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${N}`).catch(() => {});
+                if (l.inputKey) setTimeout(() => lcSendToVMix(l), 100);
+            } else {
+                l.hidden = !check.checked;
                 if (l.hidden) {
-                    // Off: turn off checkbox in vMix, flag to prevent sync reactivation
                     l._checkOff = true;
                     fetch(`${base}?Function=MultiViewOverlayOff&Input=${tk}&Value=${N}`).catch(() => {});
                 } else {
-                    // On: turn on checkbox in vMix
                     l._checkOff = false;
                     fetch(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${N}`).catch(() => {});
                     setTimeout(() => lcSendToVMix(l), 100);
@@ -526,7 +543,7 @@ function lcRenderLayerList() {
                 const inp = inputs.find(x => x.key === select.value);
                 l.inputKey = select.value;
                 l.inputTitle = inp ? (inp.shortTitle || inp.title) : '';
-                l.hidden = false;
+                l.hidden = false; l._knownState = true; l._checkOff = false;
                 if (!l._posSet) { l.x = 0; l.y = 0; l.w = 1; l.h = 1; }
                 l._posSet = true;
                 lcAssignLayerInput(l.index, select.value);
@@ -548,7 +565,7 @@ function lcRenderLayerList() {
                 if (data && data.key) {
                     l.inputKey = data.key;
                     l.inputTitle = data.shortTitle || data.title || '';
-                    l.hidden = false;
+                    l.hidden = false; l._knownState = true; l._checkOff = false;
                     if (!l._posSet) { l.x = 0; l.y = 0; l.w = 1; l.h = 1; }
                     l._posSet = true;
                     lc.selectedLayer = i;
@@ -697,6 +714,23 @@ function lcSendAllToVMix() {
     STATE.layerControl.layers.forEach(l => { if (!l.hidden && l.inputKey) lcSendToVMix(l); });
 }
 
+// Sync all 10 layers: turn ON all checkboxes in vMix and app
+function lcSyncAllLayers() {
+    const lc = STATE.layerControl;
+    const inst = getActiveInstance();
+    if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
+    const base = `http://${inst.host}:${inst.port}/api`;
+    const tk = lc.targetInputKey;
+    for (let i = 0; i < 10; i++) {
+        const l = lc.layers[i];
+        l._knownState = true;
+        l._checkOff = false;
+        l.hidden = false;
+        fetch(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${i + 1}`).catch(() => {});
+    }
+    lcRender();
+}
+
 function lcAssignLayerInput(layerIndex, sourceKey) {
     const lc = STATE.layerControl;
     const inst = getActiveInstance();
@@ -715,10 +749,9 @@ function lcRemoveLayerInput(layerIndex) {
     if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
     const base = `http://${inst.host}:${inst.port}/api`;
     const N = layerIndex + 1;
-    // First turn off visibility, then remove the overlay from the slot
-    // SetMultiViewOverlay with Value=N, (comma, no key) removes the overlay entirely
-    fetch(`${base}?Function=MultiViewOverlayOff&Input=${lc.targetInputKey}&Value=${N}`)
-        .then(() => fetch(`${base}?Function=SetMultiViewOverlay&Input=${lc.targetInputKey}&Value=${N},`))
+    // Remove input from slot, then turn checkbox ON → result: None + ON
+    fetch(`${base}?Function=SetMultiViewOverlay&Input=${lc.targetInputKey}&Value=${N},`)
+        .then(() => fetch(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${N}`))
         .catch(err => console.warn('[vMix] remove error:', err));
 }
 
@@ -767,9 +800,11 @@ async function lcSyncFromVMix() {
                     l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h;
                 }
             } else {
-                // Overlay gone from vMix → hide layer, keep _savedKey
-                if (l.inputKey || !l.hidden) {
-                    if (l.inputKey) l._savedKey = l.inputKey;
+                // Overlay gone from vMix
+                // Only hide if layer had an input (real removal)
+                // Don't touch layers that are None + ON (synced by user)
+                if (l.inputKey) {
+                    l._savedKey = l.inputKey;
                     l.inputKey = null; l.inputTitle = ''; l.hidden = true;
                     changed = true;
                 }
