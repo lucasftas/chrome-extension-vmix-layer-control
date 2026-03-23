@@ -82,7 +82,8 @@ const LC_PRESETS = {
     '5050':  [{x:0, y:0, w:0.5, h:1}, {x:0.5, y:0, w:0.5, h:1}],
     '6733':  [{x:0, y:0, w:0.667, h:1}, {x:0.667, y:0, w:0.333, h:1}],
     '3367':  [{x:0, y:0, w:0.333, h:1}, {x:0.333, y:0, w:0.667, h:1}],
-    '333':   [{x:0, y:0, w:0.333, h:1}, {x:0.333, y:0, w:0.334, h:1}, {x:0.667, y:0, w:0.333, h:1}]
+    '333':   [{x:0, y:0, w:0.333, h:1}, {x:0.333, y:0, w:0.334, h:1}, {x:0.667, y:0, w:0.333, h:1}],
+    '4grid': [{x:0,y:0,w:0.5,h:0.5}, {x:0.5,y:0,w:0.5,h:0.5}, {x:0,y:0.5,w:0.5,h:0.5}, {x:0.5,y:0.5,w:0.5,h:0.5}]
 };
 
 // Zero-Crop Multiview layouts (Simétrico — all cells equal, 16:9 preserved)
@@ -162,10 +163,7 @@ function lcApplyPreset(presetId) {
     _lcPendingLayers.clear();
     lcApplyPreset._timer = setTimeout(() => {
         lc.layers.forEach(l => {
-            if (!l.hidden && l.inputKey) {
-                lcAssignLayerInput(l.index, l.inputKey);
-                setTimeout(() => lcSendToVMix(l), 150);
-            }
+            if (!l.hidden && l.inputKey) lcSendToVMix(l);
         });
     }, 300);
 }
