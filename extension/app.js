@@ -708,8 +708,6 @@ function renderMainInterface() {
                             <div class="toggle-dot-container"><div id="toggleDot" class="toggle-dot"></div></div>
                         </label>
                     </div>
-                    <button id="btnExport" class="btn-tool">${getIcon('download')} Exportar</button>
-                    <label class="btn-tool" for="btnImport">${getIcon('upload')} Importar<input type="file" id="btnImport" style="display:none" accept=".json"></label>
                     <button id="btnRefresh" class="btn-tool" title="Recarregar">${getIcon('refresh')}</button>
                     <button id="btnConfig" class="btn-tool" title="Configurações e Storage">${getIcon('settings')} Config</button>
                     <div class="badge clock" id="clock">--:--</div>
@@ -1119,8 +1117,24 @@ function renderInputs() {
             e.preventDefault();
             copyData(input, card);
         });
-        // Left-click copies according to the current mode toggle
-        card.addEventListener('click', () => copyData(input, card));
+        // Left-click: Deck = copy GUID, Layers = select as target input
+        card.addEventListener('click', () => {
+            if (STATE.activeTab === 'layers') {
+                STATE.layerControl.targetInputKey = input.key;
+                STATE.layerControl.targetInputTitle = input.shortTitle || input.title;
+                document.getElementById('lcTargetLabel').textContent = `#${input.number} ${input.shortTitle || input.title}`;
+                // Reset _posSet so positions are fetched fresh
+                STATE.layerControl.layers.forEach(l => { l._posSet = false; });
+                lcFetchInputLayers().then(() => lcRender());
+                renderInputs(); // update active highlight
+            } else {
+                copyData(input, card);
+            }
+        });
+        // Highlight active target input in layers mode
+        if (STATE.activeTab === 'layers' && input.key === STATE.layerControl.targetInputKey) {
+            card.classList.add('lc-active');
+        }
         card.innerHTML = `
             <div class="card-num">${input.number}</div>
             <div class="card-type">${input.displayType}</div>
@@ -1238,31 +1252,6 @@ function setupGlobalEvents() {
             localStorage.setItem('vmix_grid_size', String(newSize));
             renderDeck();
         } else { e.target.value = String(STATE.gridSize); }
-    });
-    document.getElementById('btnExport')?.addEventListener('click', () => {
-        const inst = getActiveInstance();
-        const blob = new Blob([JSON.stringify({ version: 2, instanceId: inst?.id, label: inst?.label, layout: inst?.deckLayout || [] }, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `vmix_layout_${inst?.label || 'noname'}_${new Date().toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    });
-    document.getElementById('btnImport')?.addEventListener('change', e => {
-        const file = e.target.files[0]; if (!file) return;
-        const reader = new FileReader();
-        reader.onload = evt => {
-            try {
-                const json = JSON.parse(evt.target.result);
-                const inst = getActiveInstance();
-                if (!inst) { alert('Selecione uma instância'); return; }
-                const layout = Array.isArray(json) ? json : json.layout;
-                if (!Array.isArray(layout)) { alert('Arquivo inválido'); return; }
-                const newLayout = new Array(STATE.gridSize).fill(null);
-                for (let i = 0; i < Math.min(layout.length, STATE.gridSize); i++) newLayout[i] = layout[i];
-                inst.deckLayout = newLayout; saveInstanceDB(inst); renderDeck(); showToast('Layout importado!');
-            } catch { alert('Erro ao ler JSON'); }
-        };
-        reader.readAsText(file); e.target.value = '';
     });
 
     // --- Tab switching (Deck / Layer Control) ---
@@ -1936,6 +1925,14 @@ function switchPanelTab(tab) {
     tabLayers.classList.toggle('active', tab === 'layers');
     deckContent.classList.toggle('hidden', tab !== 'deck');
     layerContent.classList.toggle('hidden', tab !== 'layers');
+
+    // Theme switching
+    const root = document.getElementById('app-root');
+    if (root) root.className = tab === 'deck' ? 'theme-deck' : 'theme-layers';
+
+    // Re-render inputs to update click behavior
+    renderInputs();
+
     if (tab === 'layers') {
         if (!STATE.layerControl.targetInputKey) {
             lcShowInputSelector();
@@ -1996,6 +1993,10 @@ async function init() {
     renderMainInterface();
     setupGlobalEvents();
     restoreSettings();
+
+    // Set default theme (Deck = purple)
+    const root = document.getElementById('app-root');
+    if (root) root.className = 'theme-deck';
 
     // Initialize layer control with 10 empty layers
     if (STATE.layerControl.layers.length === 0) {
