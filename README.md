@@ -1,142 +1,159 @@
 # vMix Layer Control
 
-> Chrome extension for real-time visual control of vMix layers and multiview layouts — with a Stream Deck-style button grid, live layer editor, and Bitfocus Companion integration.
+> Extensão Chrome para controle visual em tempo real de layers e multiview do vMix — com grid de botões estilo Stream Deck, editor de layers ao vivo e integração com Bitfocus Companion.
 
-![vMix](https://img.shields.io/badge/vMix_29-Compatible-orange.svg)
+![vMix](https://img.shields.io/badge/vMix_29-Compatível-orange.svg)
 ![Chrome](https://img.shields.io/badge/Chrome-Extension_MV3-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ---
 
-## What it does
+## O que faz
 
-**vMix Layer Control** connects to the vMix HTTP API on your local network and gives you two powerful tools in a single Chrome extension:
+**vMix Layer Control** conecta à API HTTP do vMix na sua rede local e oferece duas ferramentas em uma única extensão Chrome:
 
 ### GUID Panel (Deck)
-- **32-button grid** — drag vMix inputs from the panel to create quick-access buttons
-- **Click or right-click** to copy GUID or Title Variable to clipboard
-- **Companion Action Builder** — generate ready-to-paste actions for Bitfocus Companion
-- **Multi-instance** — manage multiple vMix PCs from a single panel
-- **Network Discovery** — scan your local subnet to find vMix instances automatically
-- **Real-time tally** — visual feedback for PGM, streaming, and recording states
+- **Grid de 32 botões** estilo Stream Deck com drag-and-drop
+- **Click ou clique direito** para copiar GUID ou Variável de Título
+- **Companion Action Builder** — gera ações prontas para colar no Bitfocus Companion
+- **Multi-instância** — gerencie vários PCs com vMix em um único painel
+- **Descoberta de Rede** — scan automático da sub-rede para encontrar instâncias vMix
+- **Tally em tempo real** — feedback visual para PGM, streaming e gravação
+- **Tema roxo** (cores Stream Deck)
 
 ### Live MultiLayer Editor
-- **Visual canvas** (16:9) for positioning vMix layers in real-time
-- **10 layers** with dropdown selectors and scroll-to-change
-- **SplitView Engine** — mathematically correct center-crop with zero distortion
-- **Two drag modes**: Free (move) and Snap (resize neighbors at borders)
-- **Snap sliders** on shared borders with pixel-position tooltips
-- **Layout presets** with visual thumbnails:
-  - **Split**: 50/50, 2/3+1/3, 1/3+2/3, Triple
-  - **Multiview**: Symmetric (equal cells) and PGM (program + PIPs) modes
-  - **AUTO**: detects active layer count and applies the best layout (1–10 layers)
-- **Bidirectional sync** — changes made in the vMix GUI reflect in the extension within 1 second
-- **Sequential API queue** — prevents request flooding (~30fps throttle)
+- **Canvas visual 16:9** responsivo para posicionar até 10 layers em tempo real
+- **10 layers** com dropdowns, scroll-to-change e checkbox com 3 estados (—/✓/☐)
+- **Motor SplitView** — center-crop matematicamente correto com compensação de 31px do renderer vMix
+- **Dois modos de drag**: Free (mover) e Snap (redimensionar vizinhos nas bordas)
+- **Snap sliders** nas fronteiras compartilhadas com tooltip em pixels (0–1920px)
+- **Presets com miniaturas SVG**:
+  - **Split**: 50/50, 2/3+1/3, 1/3+2/3, Triple, 4-Grid
+  - **Multiview**: modos Simétrico + PGM (1–10 layers)
+  - **AUTO**: detecta quantidade de layers e aplica o melhor layout
+- **Botão Aparar** — corta layers que extrapolam o canvas e resolve sobreposições
+- **Sync Layers** — liga todos os checkboxes no vMix de uma vez
+- **Limpar layers** — remove inputs de layers desligadas
+- **Undo/Redo** — Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) com histórico de até 30 etapas
+- **Painel de histórico** — modal com lista de ações e timestamps
+- **Verify-and-Resend** — após envio, verifica o XML do vMix e reenvia mismatches (2 tentativas)
+- **Sync bidirecional** — polling 1s com proteção contra conflitos durante preset
+- **Tela de boas-vindas** — "Selecione um input abaixo para começar"
+- **Tema laranja** (cores Itaú)
 
 ---
 
-## How to Install
+## Como Instalar
 
-### Step 1 — Download
+### Passo 1 — Download
 
-1. Click the green **`< > Code`** button on this page
-2. Click **`Download ZIP`**
-3. Extract the ZIP to any folder on your computer
+1. Clique no botão verde **`< > Code`** nesta página
+2. Clique em **`Download ZIP`**
+3. Extraia o ZIP em qualquer pasta
 
-### Step 2 — Load in Chrome
+### Passo 2 — Carregar no Chrome
 
-1. Open **Google Chrome**
-2. Navigate to `chrome://extensions/`
-3. Enable **Developer Mode** (toggle in the top-right corner)
-4. Click **Load unpacked**
-5. Select the **`extension`** folder inside the extracted ZIP
-6. The extension icon will appear in your toolbar
+1. Abra o **Google Chrome**
+2. Acesse `chrome://extensions/`
+3. Ative o **Modo Desenvolvedor** (canto superior direito)
+4. Clique em **Carregar sem compactação**
+5. Selecione a pasta **`extension`** dentro do ZIP extraído
 
-### Step 3 — Connect to vMix
+### Passo 3 — Conectar ao vMix
 
-1. Make sure **vMix is running** with the **Web Controller enabled**:
-   - In vMix: `Settings → Web Controller → Enable`
-   - Default port: `8088`
-2. Open the extension and add your vMix instance (IP + port)
-3. Or navigate to `http://<your-vmix-ip>:8088/api` — the extension auto-injects
+1. Certifique-se que o **vMix está rodando** com o **Web Controller ativado**:
+   - No vMix: `Settings → Web Controller → Enable`
+   - Porta padrão: `8088`
+2. Abra a extensão e adicione sua instância vMix (IP + porta)
+3. Ou navegue para `http://<ip-do-vmix>:8088/api` — a extensão injeta automaticamente
 
 ---
 
-## vMix API Reference
+## Referência da API vMix
 
-The extension uses these vMix HTTP API functions (validated on vMix 29 4K):
+Funções HTTP validadas no **vMix 29 4K**:
 
-### Layer Position (per-layer)
-| Function | Description |
+### Posição por layer
+| Função | Descrição |
 |---|---|
-| `SetLayer{N}PanX` | Horizontal position (-1 to 1) |
-| `SetLayer{N}PanY` | Vertical position (1 to -1, inverted) |
-| `SetLayer{N}Zoom` | Uniform scale |
-| `SetLayer{N}CropX1` | Left crop (0 to 1) |
-| `SetLayer{N}CropX2` | Right crop boundary (1 - trim) |
-| `SetLayer{N}CropY1` | Top crop (0 to 1) |
-| `SetLayer{N}CropY2` | Bottom crop boundary (1 - trim) |
+| `SetLayer{N}PanX` | Posição horizontal (-1 a 1) |
+| `SetLayer{N}PanY` | Posição vertical (1 a -1, invertido) |
+| `SetLayer{N}Zoom` | Escala uniforme |
+| `SetLayer{N}CropX1` | Crop esquerdo (0 a 1) |
+| `SetLayer{N}CropX2` | Crop direito boundary (1 - trim) |
+| `SetLayer{N}CropY1` | Crop superior (0 a 1) |
+| `SetLayer{N}CropY2` | Crop inferior boundary (1 - trim) |
 
-### Layer Management
-| Function | Description |
+### Gerenciamento de layers
+| Função | Descrição |
 |---|---|
-| `SetMultiViewOverlay` | Assign input to layer slot |
-| `MultiViewOverlayOn` | Show layer |
-| `MultiViewOverlayOff` | Hide layer |
+| `SetMultiViewOverlay` | Atribuir input a slot de layer |
+| `SetMultiViewOverlay Value=N,` | Remover input do slot (vírgula sem key) |
+| `MultiViewOverlayOn` | Ligar checkbox da layer |
+| `MultiViewOverlayOff` | Desligar checkbox da layer |
 
-### SplitView Math (Center Crop)
+### Matemática SplitView (Center Crop)
 ```
 Z = max(w, h)
 PanX = (x + w/2) * 2 - 1
 PanY = 1 - (y + h/2) * 2
-CropX = (Z - w) / 2 / Z     →  CropX1 = CropX,  CropX2 = 1 - CropX
-CropY = (Z - h) / 2 / Z     →  CropY1 = CropY,  CropY2 = 1 - CropY
+CropX = (Z - w) / 2 / Z     →  CropX1 = CropX,  CropX2 = 1 - CropX - 0.016
+CropY = (Z - h) / 2 / Z     →  CropY1 = CropY,  CropY2 = 1 - CropY - 0.029
+```
+*Offset de 0.016 (X) e 0.029 (Y) compensa expansão de ~31px do renderer do vMix.*
+
+### Aparar (Trim)
+```
+visLeft  = x + (cropX1 * width)     // posição visível em pixels
+visRight = x + (cropX2 * width)
+Se visLeft < 0:     cropX1 += (-visLeft / width)
+Se visRight > 1920: cropX2 -= ((visRight - 1920 + 31) / width)   // 31px GAP
 ```
 
 ---
 
-## Project Structure
+## Estrutura do Projeto
 
 ```
 vmix-layer-control/
 ├── extension/              # Chrome Extension (Manifest V3)
-│   ├── app.js              # Main UI: GUID Panel, tabs, sidebar, inputs
-│   ├── lc-engine.js        # SplitView Engine: math, render, drag, API sync
-│   ├── style.css           # All styles
+│   ├── app.js              # UI: GUID Panel, tabs, sidebar, inputs, temas
+│   ├── lc-engine.js        # Motor SplitView: math, render, drag, presets, API, undo
+│   ├── style.css           # Estilos (temas Deck/Layers, canvas, layer list)
 │   ├── index.html          # Entry point
 │   ├── manifest.json       # Chrome extension manifest
-│   ├── loader.js           # Content script (injects into vMix API pages)
+│   ├── loader.js           # Content script (injeta em páginas vMix API)
 │   ├── background.js       # Service worker
-│   ├── privacy-policy.html # Privacy policy for Chrome Web Store
-│   └── icon*.png           # Extension icons (16, 48, 128px)
-├── CLAUDE.md               # Technical documentation
+│   ├── privacy-policy.html # Política de privacidade
+│   └── icon*.png           # Ícones (16, 48, 128px)
+├── CLAUDE.md               # Documentação técnica
 └── README.md
 ```
 
 ---
 
-## Privacy & Security
+## Privacidade e Segurança
 
-- Runs **100% locally** on your network
-- **No data leaves your machine** — no external servers, no analytics, no telemetry
-- All settings stored in browser `localStorage`
-- The `http://*/*` permission is used exclusively to reach vMix instances on your LAN
-- [Full Privacy Policy](extension/privacy-policy.html)
-
----
-
-## Requirements
-
-- **Google Chrome** (or Chromium-based browser)
-- **vMix** with Web Controller enabled (port 8088/8089/8090)
-- Tested on **vMix 29 4K**
+- Roda **100% localmente** na sua rede
+- **Nenhum dado sai da sua máquina** — sem servidores externos, sem analytics, sem telemetria
+- Configurações salvas no `localStorage` do navegador
+- A permissão `http://*/*` é usada exclusivamente para acessar instâncias vMix na LAN
+- [Política de Privacidade completa](extension/privacy-policy.html)
 
 ---
 
-## License
+## Requisitos
 
-MIT — free to use, modify, and distribute.
+- **Google Chrome** (ou navegador baseado em Chromium)
+- **vMix** com Web Controller ativado (porta 8088/8089/8090)
+- Testado no **vMix 29 4K**
 
 ---
 
-Developed by [Lucas Ftas](https://github.com/lucasftas)
+## Licença
+
+MIT — livre para usar, modificar e distribuir.
+
+---
+
+Desenvolvido por [Lucas Ftas](https://github.com/lucasftas)
