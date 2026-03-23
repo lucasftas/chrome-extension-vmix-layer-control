@@ -743,10 +743,11 @@ function renderMainInterface() {
                                 <button class="preset-btn" data-preset="6733" title="2/3 + 1/3"><svg viewBox="0 0 32 18"><rect x="0" y="0" width="21" height="18" rx="1" fill="#0000ff"/><rect x="22" y="0" width="10" height="18" rx="1" fill="#ff0000"/></svg></button>
                                 <button class="preset-btn" data-preset="3367" title="1/3 + 2/3"><svg viewBox="0 0 32 18"><rect x="0" y="0" width="10" height="18" rx="1" fill="#0000ff"/><rect x="11" y="0" width="21" height="18" rx="1" fill="#ff0000"/></svg></button>
                                 <button class="preset-btn" data-preset="333" title="Triple"><svg viewBox="0 0 32 18"><rect x="0" y="0" width="10" height="18" rx="1" fill="#0000ff"/><rect x="11" y="0" width="10" height="18" rx="1" fill="#ff0000"/><rect x="22" y="0" width="10" height="18" rx="1" fill="#ffa500"/></svg></button>
+                                <button class="preset-btn" data-preset="4grid" title="4 Grid (sem crop)"><svg viewBox="0 0 32 18"><rect x="0" y="0" width="15.5" height="8.5" rx="1" fill="#0000ff"/><rect x="16.5" y="0" width="15.5" height="8.5" rx="1" fill="#ff0000"/><rect x="0" y="9.5" width="15.5" height="8.5" rx="1" fill="#ffa500"/><rect x="16.5" y="9.5" width="15.5" height="8.5" rx="1" fill="#008000"/></svg></button>
                                 <div class="lc-toolbar-sep"></div>
                                 <span class="lc-presets-label">MULTIVIEW</span>
                                 <button class="lc-mode-toggle active" id="lcModeToggle" title="Alternar Simétrico / PGM">SIM</button>
-                                <button class="preset-btn" data-preset="auto" title="AUTO (usa todas as layers)"><svg viewBox="0 0 32 18"><rect x="0" y="0" width="15.5" height="8.5" rx="1" fill="#0000ff"/><rect x="16.5" y="0" width="15.5" height="8.5" rx="1" fill="#ff0000"/><rect x="0" y="9.5" width="15.5" height="8.5" rx="1" fill="#ffa500"/><rect x="16.5" y="9.5" width="15.5" height="8.5" rx="1" fill="#008000"/></svg></button>
+                                <button class="preset-btn" data-preset="auto" title="AUTO (usa todas as layers)"><svg viewBox="0 0 32 18"><rect x="0" y="0" width="32" height="18" rx="2" fill="#333"/><text x="16" y="13" text-anchor="middle" fill="#fff" font-size="13" font-weight="800" font-family="sans-serif">A</text></svg></button>
                             </div>
                         </div>
                         <div class="lc-main">
