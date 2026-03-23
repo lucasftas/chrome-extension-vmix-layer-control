@@ -28,6 +28,74 @@ function lcMakeLayer(index) {
 }
 
 // =============================================
+// UNDO HISTORY (max 30 steps, in-memory)
+// =============================================
+
+const LC_UNDO_MAX = 30;
+const _lcHistory = [];
+let _lcHistoryIdx = -1;
+
+function lcSnapshotState() {
+    return STATE.layerControl.layers.map(l => ({
+        index: l.index, inputKey: l.inputKey, inputTitle: l.inputTitle,
+        x: l.x, y: l.y, w: l.w, h: l.h,
+        hidden: l.hidden, _knownState: l._knownState, _checkOff: l._checkOff
+    }));
+}
+
+function lcPushUndo(action) {
+    if (_lcHistoryIdx < _lcHistory.length - 1) _lcHistory.splice(_lcHistoryIdx + 1);
+    _lcHistory.push({
+        action,
+        time: new Date().toLocaleTimeString('pt-BR'),
+        snapshot: lcSnapshotState()
+    });
+    if (_lcHistory.length > LC_UNDO_MAX) _lcHistory.shift();
+    _lcHistoryIdx = _lcHistory.length - 1;
+}
+
+function lcUndo() {
+    if (_lcHistoryIdx <= 0) { showToast('Nada para desfazer'); return; }
+    _lcHistoryIdx--;
+    lcRestoreSnapshot(_lcHistory[_lcHistoryIdx]);
+    showToast(`Desfeito: ${_lcHistory[_lcHistoryIdx + 1].action}`);
+}
+
+function lcRedo() {
+    if (_lcHistoryIdx >= _lcHistory.length - 1) { showToast('Nada para refazer'); return; }
+    _lcHistoryIdx++;
+    lcRestoreSnapshot(_lcHistory[_lcHistoryIdx]);
+    showToast(`Refeito: ${_lcHistory[_lcHistoryIdx].action}`);
+}
+
+function lcRestoreSnapshot(entry) {
+    const lc = STATE.layerControl;
+    entry.snapshot.forEach((s, i) => {
+        const l = lc.layers[i];
+        if (!l) return;
+        l.inputKey = s.inputKey; l.inputTitle = s.inputTitle;
+        l.x = s.x; l.y = s.y; l.w = s.w; l.h = s.h;
+        l.hidden = s.hidden; l._knownState = s._knownState; l._checkOff = s._checkOff;
+        l._posSet = true;
+    });
+    lcRender();
+    // Send to vMix
+    const inst = getActiveInstance();
+    if (!inst) return;
+    const base = `http://${inst.host}:${inst.port}/api`;
+    lc.layers.forEach(l => {
+        if (l.inputKey) {
+            const fn = l.hidden ? 'MultiViewOverlayOff' : 'MultiViewOverlayOn';
+            fetch(`${base}?Function=${fn}&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+            if (!l.hidden) lcSendToVMix(l);
+        }
+    });
+}
+
+function lcGetHistory() { return _lcHistory; }
+function lcGetHistoryIdx() { return _lcHistoryIdx; }
+
+// =============================================
 // CORE MATH (SplitView Engine)
 // =============================================
 
@@ -121,6 +189,7 @@ function lcGetAutoBoxes(N) {
 
 function lcApplyPreset(presetId) {
     const lc = STATE.layerControl;
+    lcPushUndo(`Preset ${presetId}`);
 
     let boxes;
     if (presetId === 'auto') {
@@ -263,6 +332,7 @@ function lcShowInputSelector() {
                 closeModal();
                 await lcFetchInputLayers();
                 lcRender();
+                lcInitHistory();
                 lcStartSync();
             });
         });
@@ -390,6 +460,19 @@ function lcStartResizeObserver() {
         if (STATE.activeTab === 'layers') lcRenderCanvas();
     });
     _lcResizeObserver.observe(wrapper);
+}
+
+// Keyboard shortcuts for undo/redo
+document.addEventListener('keydown', e => {
+    if (STATE.activeTab !== 'layers') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); lcUndo(); }
+    if (e.ctrlKey && e.key === 'y') { e.preventDefault(); lcRedo(); }
+});
+
+// Save initial state when target is selected
+function lcInitHistory() {
+    if (_lcHistory.length === 0) lcPushUndo('Estado inicial');
 }
 
 // Render only the canvas (layers + sliders), not the layer list
@@ -605,6 +688,7 @@ function lcRenderLayerList() {
         check.addEventListener('change', () => {
             const inst = getActiveInstance();
             if (!inst) return;
+            lcPushUndo(`Checkbox L${l.index + 1}`);
             const base = `http://${inst.host}:${inst.port}/api`;
             const N = l.index + 1;
             const tk = STATE.layerControl.targetInputKey;
@@ -649,6 +733,7 @@ function lcRenderLayerList() {
             }
         }, { passive: false });
         select.addEventListener('change', () => {
+            lcPushUndo(`Input L${l.index + 1}`);
             if (!select.value) {
                 lcRemoveLayerInput(l.index);
                 l.inputKey = null; l.inputTitle = ''; l.hidden = true;            } else {
@@ -702,6 +787,7 @@ function lcRenderLayerList() {
         clearBtn.title = `Remove o input atribuído de ${hiddenWithInput.length} layer(s) que estão com o checkbox desligado, liberando o slot para reutilização. As layers ativas não são afetadas.`;
         clearBtn.addEventListener('click', e => {
             e.stopPropagation();
+            lcPushUndo('Limpar layers');
             hiddenWithInput.forEach(l => {
                 lcRemoveLayerInput(l.index);
                 l.inputKey = null; l.inputTitle = '';
@@ -774,6 +860,7 @@ document.addEventListener('mouseup', () => {
     const lc = STATE.layerControl;
     const type = _lcDrag.type, idx = _lcDrag.i;
     _lcDrag = null;
+    lcPushUndo(type === 'snap' ? 'Resize layer' : 'Mover layer');
     lcRender();
     if (type === 'snap') lc.layers.forEach(l => { if (!l.hidden && l.inputKey) lcSendToVMix(l); });
     else { const l = lc.layers[idx]; if (l) lcSendToVMix(l); }
@@ -822,6 +909,7 @@ async function lcTrimLayers() {
     const lc = STATE.layerControl;
     const inst = getActiveInstance();
     if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
+    lcPushUndo('Aparar');
 
     const res = await fetch(`http://${inst.host}:${inst.port}/api`, { signal: AbortSignal.timeout(5000) });
     const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
