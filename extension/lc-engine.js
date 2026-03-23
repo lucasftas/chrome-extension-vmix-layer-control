@@ -72,37 +72,45 @@ function lcToCanvas(l, cW, cH) {
 // PRESETS
 // =============================================
 
+// Split presets (with center crop)
 const LC_PRESETS = {
     '5050':  [{x:0, y:0, w:0.5, h:1}, {x:0.5, y:0, w:0.5, h:1}],
     '6733':  [{x:0, y:0, w:0.667, h:1}, {x:0.667, y:0, w:0.333, h:1}],
     '3367':  [{x:0, y:0, w:0.333, h:1}, {x:0.333, y:0, w:0.667, h:1}],
-    '333':   [{x:0, y:0, w:0.333, h:1}, {x:0.333, y:0, w:0.334, h:1}, {x:0.667, y:0, w:0.333, h:1}],
-    '4grid': [{x:0,y:0,w:0.5,h:0.5}, {x:0.5,y:0,w:0.5,h:0.5}, {x:0,y:0.5,w:0.5,h:0.5}, {x:0.5,y:0.5,w:0.5,h:0.5}]
+    '333':   [{x:0, y:0, w:0.333, h:1}, {x:0.333, y:0, w:0.334, h:1}, {x:0.667, y:0, w:0.333, h:1}]
 };
 
-const LC_AUTO_COLS = [0, 1, 2, 2, 2, 3, 3, 4, 4, 3, 5];
+// Zero-Crop Multiview layouts (Simétrico — all cells equal, 16:9 preserved)
+const LC_SIM = [
+    [{x:0,y:0,w:1,h:1}],
+    [{x:0,y:.25,w:.5,h:.5},{x:.5,y:.25,w:.5,h:.5}],
+    [{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:.25,y:.5,w:.5,h:.5}],
+    [{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}],
+    [{x:0,y:1/6,w:1/3,h:1/3},{x:1/3,y:1/6,w:1/3,h:1/3},{x:2/3,y:1/6,w:1/3,h:1/3},{x:1/6,y:1/2,w:1/3,h:1/3},{x:1/2,y:1/2,w:1/3,h:1/3}],
+    [{x:0,y:1/6,w:1/3,h:1/3},{x:1/3,y:1/6,w:1/3,h:1/3},{x:2/3,y:1/6,w:1/3,h:1/3},{x:0,y:1/2,w:1/3,h:1/3},{x:1/3,y:1/2,w:1/3,h:1/3},{x:2/3,y:1/2,w:1/3,h:1/3}],
+    [{x:0,y:0,w:1/3,h:1/3},{x:1/3,y:0,w:1/3,h:1/3},{x:2/3,y:0,w:1/3,h:1/3},{x:0,y:1/3,w:1/3,h:1/3},{x:1/3,y:1/3,w:1/3,h:1/3},{x:2/3,y:1/3,w:1/3,h:1/3},{x:1/3,y:2/3,w:1/3,h:1/3}],
+    [{x:0,y:0,w:1/3,h:1/3},{x:1/3,y:0,w:1/3,h:1/3},{x:2/3,y:0,w:1/3,h:1/3},{x:0,y:1/3,w:1/3,h:1/3},{x:1/3,y:1/3,w:1/3,h:1/3},{x:2/3,y:1/3,w:1/3,h:1/3},{x:1/6,y:2/3,w:1/3,h:1/3},{x:1/2,y:2/3,w:1/3,h:1/3}],
+    [0,1,2].flatMap(y=>[0,1,2].map(x=>({x:x/3,y:y/3,w:1/3,h:1/3}))),
+    [{x:0,y:.125,w:.25,h:.25},{x:.25,y:.125,w:.25,h:.25},{x:.5,y:.125,w:.25,h:.25},{x:.75,y:.125,w:.25,h:.25},{x:0,y:.375,w:.25,h:.25},{x:.25,y:.375,w:.25,h:.25},{x:.5,y:.375,w:.25,h:.25},{x:.75,y:.375,w:.25,h:.25},{x:.25,y:.625,w:.25,h:.25},{x:.5,y:.625,w:.25,h:.25}]
+];
 
-function lcAutoBoxes(N) {
-    const cols = LC_AUTO_COLS[Math.min(N, 10)];
-    const rows = Math.ceil(N / cols);
-    const slotW = 1 / cols, slotH = 1 / rows;
-    // In normalized 16:9 space, w == h means the cell is 16:9
-    // Use the smaller dimension so cell fits inside the slot without crop
-    const cellSize = Math.min(slotW, slotH);
-    const boxes = [];
-    for (let r = 0; r < rows; r++) {
-        const cnt = (r === rows - 1) ? (N - cols * (rows - 1)) : cols;
-        for (let c = 0; c < cnt; c++) {
-            const colOff = (cols - cnt) / 2; // center partial last row
-            const slotX = (colOff + c) * slotW;
-            const slotY = r * slotH;
-            // Center cell within slot
-            const x = slotX + (slotW - cellSize) / 2;
-            const y = slotY + (slotH - cellSize) / 2;
-            boxes.push({ x: +x.toFixed(6), y: +y.toFixed(6), w: +cellSize.toFixed(6), h: +cellSize.toFixed(6) });
-        }
-    }
-    return boxes;
+// Zero-Crop PGM layouts (Program + PIPs — last layer is the big one)
+const LC_PGM = [
+    [{x:0,y:0,w:1,h:1}],
+    [{x:2/3,y:1/6,w:1/3,h:1/3},{x:0,y:1/6,w:2/3,h:2/3}],
+    [{x:2/3,y:1/6,w:1/3,h:1/3},{x:2/3,y:1/2,w:1/3,h:1/3},{x:0,y:1/6,w:2/3,h:2/3}],
+    [{x:3/4,y:1/8,w:1/4,h:1/4},{x:3/4,y:3/8,w:1/4,h:1/4},{x:3/4,y:5/8,w:1/4,h:1/4},{x:0,y:1/8,w:3/4,h:3/4}],
+    [{x:3/4,y:0,w:1/4,h:1/4},{x:3/4,y:1/4,w:1/4,h:1/4},{x:3/4,y:1/2,w:1/4,h:1/4},{x:3/4,y:3/4,w:1/4,h:1/4},{x:0,y:1/8,w:3/4,h:3/4}],
+    [{x:2/3,y:0,w:1/3,h:1/3},{x:2/3,y:1/3,w:1/3,h:1/3},{x:2/3,y:2/3,w:1/3,h:1/3},{x:0,y:2/3,w:1/3,h:1/3},{x:1/3,y:2/3,w:1/3,h:1/3},{x:0,y:0,w:2/3,h:2/3}],
+    [{x:3/4,y:0,w:1/4,h:1/4},{x:3/4,y:1/4,w:1/4,h:1/4},{x:3/4,y:1/2,w:1/4,h:1/4},{x:3/4,y:3/4,w:1/4,h:1/4},{x:1/8,y:3/4,w:1/4,h:1/4},{x:3/8,y:3/4,w:1/4,h:1/4},{x:0,y:0,w:3/4,h:3/4}],
+    [{x:3/4,y:0,w:1/4,h:1/4},{x:3/4,y:1/4,w:1/4,h:1/4},{x:3/4,y:1/2,w:1/4,h:1/4},{x:3/4,y:3/4,w:1/4,h:1/4},{x:0,y:3/4,w:1/4,h:1/4},{x:1/4,y:3/4,w:1/4,h:1/4},{x:1/2,y:3/4,w:1/4,h:1/4},{x:0,y:0,w:3/4,h:3/4}],
+    [{x:4/5,y:0,w:1/5,h:1/5},{x:4/5,y:1/5,w:1/5,h:1/5},{x:4/5,y:2/5,w:1/5,h:1/5},{x:4/5,y:3/5,w:1/5,h:1/5},{x:4/5,y:4/5,w:1/5,h:1/5},{x:.1,y:4/5,w:1/5,h:1/5},{x:.3,y:4/5,w:1/5,h:1/5},{x:.5,y:4/5,w:1/5,h:1/5},{x:0,y:0,w:4/5,h:4/5}],
+    [{x:4/5,y:0,w:1/5,h:1/5},{x:4/5,y:1/5,w:1/5,h:1/5},{x:4/5,y:2/5,w:1/5,h:1/5},{x:4/5,y:3/5,w:1/5,h:1/5},{x:4/5,y:4/5,w:1/5,h:1/5},{x:0,y:4/5,w:1/5,h:1/5},{x:1/5,y:4/5,w:1/5,h:1/5},{x:2/5,y:4/5,w:1/5,h:1/5},{x:3/5,y:4/5,w:1/5,h:1/5},{x:0,y:0,w:4/5,h:4/5}]
+];
+
+function lcGetAutoBoxes(N) {
+    const idx = Math.max(0, Math.min(N - 1, 9));
+    return STATE.layerControl.layoutMode === 'pgm' ? LC_PGM[idx] : LC_SIM[idx];
 }
 
 function lcApplyPreset(presetId) {
@@ -113,7 +121,7 @@ function lcApplyPreset(presetId) {
         // AUTO uses only layers with input
         const withInput = lc.layers.filter(l => l.inputKey);
         if (!withInput.length) { showToast('Nenhuma layer com input'); return; }
-        boxes = lcAutoBoxes(withInput.length);
+        boxes = lcGetAutoBoxes(withInput.length);
         withInput.forEach((l, i) => {
             l.x = boxes[i].x; l.y = boxes[i].y;
             l.w = boxes[i].w; l.h = boxes[i].h;
@@ -466,6 +474,8 @@ function lcRenderLayerList() {
         const check = document.createElement('input');
         check.type = 'checkbox';
         check.className = 'lc-layer-check';
+        check.id = `lc-check-${i}`;
+        check.name = `layer-vis-${i}`;
         check.checked = has && !l.hidden;
         check.disabled = !has;
         check.addEventListener('click', e => e.stopPropagation());
@@ -482,8 +492,11 @@ function lcRenderLayerList() {
 
         const select = document.createElement('select');
         select.className = 'lc-layer-select';
+        select.name = `layer-${i}`;
+        select.id = `lc-select-${i}`;
         select.innerHTML = '<option value="">None</option>' +
-            inputs.map(inp => `<option value="${inp.key}" ${inp.key === l.inputKey ? 'selected' : ''}>${inp.number} ${inp.shortTitle || inp.title}</option>`).join('');
+            inputs.filter(inp => inp.key !== lc.targetInputKey)
+            .map(inp => `<option value="${inp.key}" ${inp.key === l.inputKey ? 'selected' : ''}>${inp.number} ${inp.shortTitle || inp.title}</option>`).join('');
         select.addEventListener('mousedown', e => e.stopPropagation());
         select.addEventListener('click', e => e.stopPropagation());
         select.addEventListener('wheel', e => {
@@ -498,7 +511,7 @@ function lcRenderLayerList() {
         select.addEventListener('change', () => {
             if (!select.value) {
                 lcRemoveLayerInput(l.index);
-                l.inputKey = null; l.inputTitle = ''; l.hidden = true; l._userHidden = false;
+                l.inputKey = null; l.inputTitle = ''; l.hidden = true; l._userHidden = true;
             } else {
                 const inp = inputs.find(x => x.key === select.value);
                 l.inputKey = select.value;
@@ -690,13 +703,14 @@ async function lcSyncFromVMix() {
             const ov = ovMap[i];
 
             if (ov) {
-                // Update input key/title if changed
+                // Skip if user explicitly removed/hid this layer
+                if (l._userHidden) continue;
+
                 if (l.inputKey !== ov.key) {
                     l.inputKey = ov.key; l.inputTitle = ov.title;
                     l._posSet = true; changed = true;
                 }
-                // Only show if not explicitly hidden by user/preset
-                if (l.hidden && !l._userHidden) {
+                if (l.hidden) {
                     l.hidden = false; changed = true;
                 }
                 // Sync position (skip layer being edited)
@@ -704,7 +718,7 @@ async function lcSyncFromVMix() {
                     l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h;
                 }
             } else {
-                // Overlay removed from vMix entirely
+                // Overlay truly gone from vMix XML
                 if (l.inputKey || !l.hidden) {
                     l.inputKey = null; l.inputTitle = ''; l.hidden = true;
                     l._userHidden = false; changed = true;

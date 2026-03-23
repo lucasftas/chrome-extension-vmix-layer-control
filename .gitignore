@@ -11,5 +11,12 @@ Desktop.ini
 chrome-store-guide.html
 store-screenshots.html
 
+# Dev reference files
+LayoutDinamico.html
+SplitView.md
+
+# Claude
+.claude/
+
 # Dependencies
 node_modules/
