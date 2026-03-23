@@ -1965,7 +1965,7 @@ function switchPanelTab(tab) {
 
     if (tab === 'layers') {
         if (!STATE.layerControl.targetInputKey) {
-            lcShowInputSelector();
+            lcShowWelcome();
         } else {
             lcFetchInputLayers().then(() => lcRender());
         }
