@@ -286,14 +286,57 @@ function lcClamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
 let _lcDrag = null;
 
+// Fit canvas 16:9 inside wrapper with minimum margin
+const LC_CANVAS_MARGIN = 20;
+
+function lcFitCanvas() {
+    const wrapper = document.querySelector('.layer-canvas-wrapper');
+    const canvas = document.getElementById('layerCanvas');
+    if (!wrapper || !canvas) return;
+    const wW = wrapper.clientWidth;
+    const wH = wrapper.clientHeight;
+    if (!wW || !wH) return;
+    const availW = wW - LC_CANVAS_MARGIN * 2;
+    const availH = wH - LC_CANVAS_MARGIN * 2;
+    let cW, cH;
+    if (availW / availH > 16 / 9) {
+        // Height limited
+        cH = availH;
+        cW = cH * 16 / 9;
+    } else {
+        // Width limited
+        cW = availW;
+        cH = cW * 9 / 16;
+    }
+    cW = Math.max(1, Math.round(cW));
+    cH = Math.max(1, Math.round(cH));
+    canvas.style.width = cW + 'px';
+    canvas.style.height = cH + 'px';
+    canvas.style.left = Math.round((wW - cW) / 2) + 'px';
+    canvas.style.top = Math.round((wH - cH) / 2) + 'px';
+    return { cW, cH };
+}
+
+// Re-fit canvas on resize
+let _lcResizeObserver = null;
+function lcStartResizeObserver() {
+    if (_lcResizeObserver) return;
+    const wrapper = document.querySelector('.layer-canvas-wrapper');
+    if (!wrapper) return;
+    _lcResizeObserver = new ResizeObserver(() => {
+        if (STATE.activeTab === 'layers') lcRenderCanvas();
+    });
+    _lcResizeObserver.observe(wrapper);
+}
+
 // Render only the canvas (layers + sliders), not the layer list
 function lcRenderCanvas() {
     const canvas = document.getElementById('layerCanvas');
     if (!canvas) return;
-    const cW = canvas.clientWidth, cH = canvas.clientHeight;
-    if (!cW || !cH) return;
+    const fit = lcFitCanvas();
+    if (!fit) return;
     canvas.innerHTML = '';
-    _lcRenderBoxes(canvas, STATE.layerControl, cW, cH);
+    _lcRenderBoxes(canvas, STATE.layerControl, fit.cW, fit.cH);
 }
 
 // Update visual state of layer list rows without rebuilding DOM

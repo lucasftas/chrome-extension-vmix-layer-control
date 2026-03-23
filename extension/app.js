@@ -54,7 +54,7 @@ const STATE = {
         targetInputKey: null,
         targetInputTitle: '',
         snapEnabled: true,
-        layoutMode: 'sim',  // 'sim' = Simétrico, 'pgm' = PGM
+        layoutMode: 'sim',
         _syncTimer: null
     }
 };
@@ -1949,6 +1949,7 @@ function switchPanelTab(tab) {
             lcFetchInputLayers().then(() => lcRender());
         }
         lcStartSync();
+        lcStartResizeObserver();
     } else {
         lcStopSync();
     }
