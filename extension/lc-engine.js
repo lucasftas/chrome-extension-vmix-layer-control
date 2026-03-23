@@ -133,11 +133,14 @@ function lcApplyPreset(presetId) {
             l.w = boxes[i].w; l.h = boxes[i].h;
             l.hidden = false; l._posSet = true; l._knownState = true; l._checkOff = false;
         });
-        // Hide layers beyond count — remove from vMix
+        // Hide extra layers — turn off checkbox but keep input assigned
         lc.layers.forEach(l => {
             if (!withInput.includes(l)) {
-                l.hidden = true;
-                if (l.inputKey) { l._savedKey = l.inputKey; lcRemoveLayerInput(l.index); }
+                l.hidden = true; l._knownState = true; l._checkOff = true;
+                if (l.inputKey) {
+                    const inst = getActiveInstance();
+                    if (inst) fetch(`http://${inst.host}:${inst.port}/api?Function=MultiViewOverlayOff&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+                }
             }
         });
     } else {
@@ -151,21 +154,81 @@ function lcApplyPreset(presetId) {
                 l.hidden = false; l._posSet = true; l._knownState = true; l._checkOff = false;
             } else {
                 l.hidden = true; l._knownState = true; l._checkOff = true;
-                if (l.inputKey) { l._savedKey = l.inputKey; lcRemoveLayerInput(l.index); }
+                if (l.inputKey) {
+                    const inst = getActiveInstance();
+                    if (inst) fetch(`http://${inst.host}:${inst.port}/api?Function=MultiViewOverlayOff&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+                }
             }
         }
     }
 
     lc.selectedLayer = 0;
     lcRender();
-    // Debounce: cancel pending preset sends, wait before sending
+    // Debounce: last-click-wins, then fire all at once
     if (lcApplyPreset._timer) clearTimeout(lcApplyPreset._timer);
-    _lcPendingLayers.clear();
     lcApplyPreset._timer = setTimeout(() => {
-        lc.layers.forEach(l => {
-            if (!l.hidden && l.inputKey) lcSendToVMix(l);
+        const inst = getActiveInstance();
+        if (!inst) return;
+        const base = `http://${inst.host}:${inst.port}/api`;
+        const active = lc.layers.filter(l => !l.hidden && l.inputKey);
+        // Fire ON + positions all at once (Companion style)
+        active.forEach(l => {
+            fetch(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+            lcSendToVMix(l);
         });
+        // Verify after 1s: read vMix state and resend anything that didn't apply
+        setTimeout(() => lcVerifyAndResend(active), 1000);
     }, 300);
+}
+
+// Verify sent values against vMix XML, resend mismatches
+async function lcVerifyAndResend(expectedLayers) {
+    const lc = STATE.layerControl;
+    const inst = getActiveInstance();
+    if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
+    try {
+        const res = await fetch(`http://${inst.host}:${inst.port}/api`, { signal: AbortSignal.timeout(3000) });
+        const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
+        const inputEl = Array.from(doc.getElementsByTagName('input')).find(el => el.getAttribute('key') === lc.targetInputKey);
+        if (!inputEl) return;
+        const base = `http://${inst.host}:${inst.port}/api`;
+        const tk = lc.targetInputKey;
+        const overlays = Array.from(inputEl.getElementsByTagName('overlay'));
+        const T = 0.01; // tolerance
+
+        for (const l of expectedLayers) {
+            const vm = lcToVMix(l);
+            const N = l.index + 1;
+            const ov = overlays.find(o => parseInt(o.getAttribute('index')) === l.index);
+            if (!ov) { lcSendToVMix(l); continue; } // overlay missing, resend
+
+            const posEl = ov.getElementsByTagName('position')[0];
+            const cropEl = ov.getElementsByTagName('crop')[0];
+            const cur = {
+                panX: posEl ? parseFloat(posEl.getAttribute('panX') || '0') : 0,
+                panY: posEl ? parseFloat(posEl.getAttribute('panY') || '0') : 0,
+                zoom: posEl ? parseFloat(posEl.getAttribute('zoomX') || '1') : 1,
+                cropX1: cropEl ? parseFloat(cropEl.getAttribute('X1') || '0') : 0,
+                cropX2: cropEl ? parseFloat(cropEl.getAttribute('X2') || '1') : 1,
+                cropY1: cropEl ? parseFloat(cropEl.getAttribute('Y1') || '0') : 0,
+                cropY2: cropEl ? parseFloat(cropEl.getAttribute('Y2') || '1') : 1
+            };
+
+            // Check each prop, resend mismatches
+            const mismatches = {};
+            if (Math.abs(cur.panX - vm.panX) > T) mismatches.PanX = vm.panX;
+            if (Math.abs(cur.panY - vm.panY) > T) mismatches.PanY = vm.panY;
+            if (Math.abs(cur.zoom - vm.zoom) > T) mismatches.Zoom = vm.zoom;
+            if (Math.abs(cur.cropX1 - vm.cropX1) > T) mismatches.CropX1 = vm.cropX1;
+            if (Math.abs(cur.cropX2 - vm.cropX2) > T) mismatches.CropX2 = vm.cropX2;
+            if (Math.abs(cur.cropY1 - vm.cropY1) > T) mismatches.CropY1 = vm.cropY1;
+            if (Math.abs(cur.cropY2 - vm.cropY2) > T) mismatches.CropY2 = vm.cropY2;
+
+            for (const [k, v] of Object.entries(mismatches)) {
+                fetch(`${base}?Function=SetLayer${N}${k}&Input=${tk}&Value=${v}`).catch(() => {});
+            }
+        }
+    } catch {}
 }
 
 // =============================================
@@ -720,44 +783,31 @@ document.addEventListener('mouseup', () => {
 // VMIX API DISPATCH
 // =============================================
 
-let _lcPendingLayers = new Set(), _lcSyncActive = false;
-
-async function _flushVMix() {
-    if (_lcSyncActive || _lcPendingLayers.size === 0) return;
-    _lcSyncActive = true;
-    const inst = getActiveInstance();
-    if (!inst || inst.status !== 'online' || !STATE.layerControl.targetInputKey) {
-        _lcSyncActive = false; return;
-    }
-    const base = `http://${inst.host}:${inst.port}/api`;
-    const tk = STATE.layerControl.targetInputKey;
-    const layers = Array.from(_lcPendingLayers);
-    _lcPendingLayers.clear();
-
-    for (const l of layers) {
-        const N = l.index + 1;
-        const vm = lcToVMix(l);
-        const props = {
-            PanX: vm.panX, PanY: vm.panY, Zoom: vm.zoom,
-            CropX1: vm.cropX1, CropX2: vm.cropX2,
-            CropY1: vm.cropY1, CropY2: vm.cropY2
-        };
-        for (const [k, v] of Object.entries(props)) {
-            try { await fetch(`${base}?Function=SetLayer${N}${k}&Input=${tk}&Value=${v}`); }
-            catch {}
-        }
-    }
-    _lcSyncActive = false;
-    if (_lcPendingLayers.size > 0) setTimeout(_flushVMix, 10);
-}
-
 function lcSendToVMix(layer) {
     if (!layer.inputKey) return;
-    _lcPendingLayers.add(layer);
-    _flushVMix();
+    const lc = STATE.layerControl;
+    const inst = getActiveInstance();
+    if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
+    const base = `http://${inst.host}:${inst.port}/api`;
+    const N = layer.index + 1;
+    const tk = lc.targetInputKey;
+    const vm = lcToVMix(layer);
+    // Fire-and-forget: all 7 commands in parallel (Companion style)
+    fetch(`${base}?Function=SetLayer${N}PanX&Input=${tk}&Value=${vm.panX}`).catch(() => {});
+    fetch(`${base}?Function=SetLayer${N}PanY&Input=${tk}&Value=${vm.panY}`).catch(() => {});
+    fetch(`${base}?Function=SetLayer${N}Zoom&Input=${tk}&Value=${vm.zoom}`).catch(() => {});
+    fetch(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${vm.cropX1}`).catch(() => {});
+    fetch(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${vm.cropX2}`).catch(() => {});
+    fetch(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${vm.cropY1}`).catch(() => {});
+    fetch(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${vm.cropY2}`).catch(() => {});
 }
 
-function lcThrottleSend(layer) { lcSendToVMix(layer); }
+let _lcThrottleTimer = null;
+function lcThrottleSend(layer) {
+    if (_lcThrottleTimer) return;
+    _lcThrottleTimer = setTimeout(() => { _lcThrottleTimer = null; }, 33);
+    lcSendToVMix(layer);
+}
 
 function lcSendAllToVMix() {
     STATE.layerControl.layers.forEach(l => { if (!l.hidden && l.inputKey) lcSendToVMix(l); });
