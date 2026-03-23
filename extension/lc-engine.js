@@ -188,6 +188,7 @@ function lcGetAutoBoxes(N) {
 }
 
 function lcApplyPreset(presetId) {
+
     const lc = STATE.layerControl;
     lcPushUndo(`Preset ${presetId}`);
 
@@ -232,26 +233,31 @@ function lcApplyPreset(presetId) {
     }
 
     lc.selectedLayer = 0;
+
     lcRender();
     // Debounce: last-click-wins, then fire all at once
-    if (lcApplyPreset._timer) clearTimeout(lcApplyPreset._timer);
+    if (lcApplyPreset._timer) { clearTimeout(lcApplyPreset._timer); }
+    lcApplyPreset._busy = true;
     lcApplyPreset._timer = setTimeout(() => {
         const inst = getActiveInstance();
         if (!inst) return;
         const base = `http://${inst.host}:${inst.port}/api`;
         const active = lc.layers.filter(l => !l.hidden && l.inputKey);
-        // Fire ON + positions all at once (Companion style)
+    
         active.forEach(l => {
+        
             fetch(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
             lcSendToVMix(l);
         });
-        // Verify after 1s: read vMix state and resend anything that didn't apply
+
         setTimeout(() => lcVerifyAndResend(active), 1000);
     }, 300);
 }
 
 // Verify sent values against vMix XML, resend mismatches
-async function lcVerifyAndResend(expectedLayers) {
+async function lcVerifyAndResend(expectedLayers, attempt) {
+    attempt = attempt || 1;
+
     const lc = STATE.layerControl;
     const inst = getActiveInstance();
     if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
@@ -263,13 +269,14 @@ async function lcVerifyAndResend(expectedLayers) {
         const base = `http://${inst.host}:${inst.port}/api`;
         const tk = lc.targetInputKey;
         const overlays = Array.from(inputEl.getElementsByTagName('overlay'));
-        const T = 0.01; // tolerance
+        const T = 0.01;
+        let hadMismatch = false;
 
         for (const l of expectedLayers) {
             const vm = lcToVMix(l);
             const N = l.index + 1;
             const ov = overlays.find(o => parseInt(o.getAttribute('index')) === l.index);
-            if (!ov) { lcSendToVMix(l); continue; } // overlay missing, resend
+            if (!ov) { lcSendToVMix(l); hadMismatch = true; continue; }
 
             const posEl = ov.getElementsByTagName('position')[0];
             const cropEl = ov.getElementsByTagName('crop')[0];
@@ -283,7 +290,6 @@ async function lcVerifyAndResend(expectedLayers) {
                 cropY2: cropEl ? parseFloat(cropEl.getAttribute('Y2') || '1') : 1
             };
 
-            // Check each prop, resend mismatches
             const mismatches = {};
             if (Math.abs(cur.panX - vm.panX) > T) mismatches.PanX = vm.panX;
             if (Math.abs(cur.panY - vm.panY) > T) mismatches.PanY = vm.panY;
@@ -293,9 +299,25 @@ async function lcVerifyAndResend(expectedLayers) {
             if (Math.abs(cur.cropY1 - vm.cropY1) > T) mismatches.CropY1 = vm.cropY1;
             if (Math.abs(cur.cropY2 - vm.cropY2) > T) mismatches.CropY2 = vm.cropY2;
 
-            for (const [k, v] of Object.entries(mismatches)) {
-                fetch(`${base}?Function=SetLayer${N}${k}&Input=${tk}&Value=${v}`).catch(() => {});
+            if (Object.keys(mismatches).length > 0) {
+                hadMismatch = true;
+
+                for (const [k, v] of Object.entries(mismatches)) {
+                    fetch(`${base}?Function=SetLayer${N}${k}&Input=${tk}&Value=${v}`).catch(() => {});
+                }
+            } else {
+
             }
+        }
+
+        if (hadMismatch && attempt < 2) {
+
+            setTimeout(() => lcVerifyAndResend(expectedLayers, attempt + 1), 800);
+        } else {
+        
+            lcApplyPreset._busy = false;
+            await lcFetchInputLayers();
+            lcRenderCanvas();
         }
     } catch {}
 }
@@ -386,7 +408,8 @@ async function lcFetchInputLayers() {
             if (ov) {
                 l.inputKey = ov.key; l.inputTitle = ov.title;
                 if (!l._posSet) { l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h; l._posSet = true; }
-                l.hidden = false;
+                // Respect _checkOff: don't show layers the user/preset turned off
+                if (!l._checkOff) l.hidden = false;
             } else {
                 l.inputKey = null; l.inputTitle = ''; l.hidden = true;
             }
@@ -466,9 +489,21 @@ function lcStartResizeObserver() {
 document.addEventListener('keydown', e => {
     if (STATE.activeTab !== 'layers') return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-    if (e.ctrlKey && e.key === 'z') { e.preventDefault(); lcUndo(); }
-    if (e.ctrlKey && e.key === 'y') { e.preventDefault(); lcRedo(); }
+    if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); lcUndo(); }
+    if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); lcRedo(); }
 });
+
+// Welcome message when no target selected
+function lcShowWelcome() {
+    const canvas = document.getElementById('layerCanvas');
+    if (!canvas) return;
+    lcFitCanvas();
+    canvas.innerHTML = `<div class="lc-welcome">
+        <div class="lc-welcome-icon">${getIcon('layers')}</div>
+        <div class="lc-welcome-title">Live MultiLayer Editor</div>
+        <div class="lc-welcome-sub">Selecione um input abaixo para começar</div>
+    </div>`;
+}
 
 // Save initial state when target is selected
 function lcInitHistory() {
@@ -750,8 +785,6 @@ function lcRenderLayerList() {
             lcRenderCanvas();
             lcUpdateRowVisuals();
         });
-
-
         // Drop input onto layer row = assign + select
         row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('lc-drop-target'); });
         row.addEventListener('dragleave', () => row.classList.remove('lc-drop-target'));
@@ -1043,8 +1076,6 @@ function lcRemoveLayerInput(layerIndex) {
         .then(() => fetch(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${N}`))
         .catch(err => console.warn('[vMix] remove error:', err));
 }
-
-
 // =============================================
 // BIDIRECTIONAL SYNC (poll vMix every 1s)
 // =============================================
@@ -1084,8 +1115,8 @@ async function lcSyncFromVMix() {
                 if (l.hidden && !l._checkOff) {
                     l.hidden = false; changed = true;
                 }
-                // Sync position (skip layer being edited)
-                if (i !== lc.selectedLayer && !l.hidden) {
+                // Sync position (skip layer being edited, skip during preset application)
+                if (i !== lc.selectedLayer && !l.hidden && !lcApplyPreset._busy) {
                     l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h;
                 }
             } else {
@@ -1093,7 +1124,7 @@ async function lcSyncFromVMix() {
                 // Only hide if layer had an input (real removal)
                 // Don't touch layers that are None + ON (synced by user)
                 if (l.inputKey) {
-                    l._savedKey = l.inputKey;
+
                     l.inputKey = null; l.inputTitle = ''; l.hidden = true;
                     changed = true;
                 }
