@@ -2261,6 +2261,22 @@ body {
 }
 .lc-trim-btn:hover { background: #3d2e0a; color: #fff; }
 
+.lc-swap-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #252540;
+    border: 1px solid #6366f1;
+    color: #a5b4fc;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.lc-swap-btn:hover { background: #2d2d5e; color: #fff; }
+
 .lc-history-btn {
     display: flex; align-items: center; justify-content: center;
     background: #252540; border: 1px solid #3a3a5a; color: #999;
@@ -2342,7 +2358,7 @@ body {
 }
 
 .lc-sidebar {
-    width: 200px;
+    width: 280px;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -2518,8 +2534,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    flex: 1;
+    max-height: 50%;
     overflow-y: auto;
+    flex-shrink: 0;
 }
 
 .lc-layer-row {
@@ -2591,4 +2608,301 @@ body {
     transition: all 0.15s;
 }
 .lc-clear-btn:hover { background: #fee2e2; border-color: var(--accent-red); }
+
+/* =============================================
+   Sidebar divider
+   ============================================= */
+.lc-sidebar-divider {
+    height: 1px;
+    background: #2a2a3a;
+    margin: 6px 0;
+    flex-shrink: 0;
+}
+
+/* =============================================
+   Properties Panel
+   ============================================= */
+.lc-props-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.lc-props-header {
+    padding: 0 2px;
+}
+
+.lc-props-select {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+    outline: none;
+}
+.lc-props-select:focus { border-color: var(--accent-orange); }
+
+.lc-props-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px;
+}
+
+.lc-props-row {
+    display: grid;
+    grid-template-columns: 52px 1fr 24px 24px;
+    gap: 3px;
+    align-items: center;
+    height: 26px;
+}
+
+.lc-props-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.lc-props-input {
+    width: 100%;
+    padding: 3px 5px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: monospace;
+    background: #fff;
+    color: var(--text);
+    outline: none;
+    -moz-appearance: textfield;
+}
+.lc-props-input::-webkit-inner-spin-button,
+.lc-props-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.lc-props-input:focus { border-color: var(--accent-orange); }
+.lc-props-input[readonly] { background: #f5f5f5; color: #999; cursor: default; }
+
+.lc-props-lock {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    transition: all 0.15s;
+}
+.lc-props-lock:hover { background: #e0e0e0; }
+.lc-props-lock.unlocked { background: #fff3e0; border-color: #e86c00; }
+.lc-props-lock.unlocked:hover { background: #ffe0b2; }
+
+.lc-props-reset {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f0f0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+    transition: all 0.15s;
+}
+.lc-props-reset:hover { background: #e0e0e0; }
+.lc-props-reset.hidden { visibility: hidden; }
+
+/* =============================================
+   Gap Slider (toolbar)
+   ============================================= */
+.lc-gap-control {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 4px;
+}
+
+.lc-gap-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #999;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.lc-gap-slider {
+    width: 60px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #252540;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+.lc-gap-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #e86c00;
+    cursor: pointer;
+    border: none;
+}
+.lc-gap-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #e86c00;
+    cursor: pointer;
+    border: none;
+}
+
+.lc-gap-value {
+    font-size: 10px;
+    font-weight: 700;
+    color: #e86c00;
+    min-width: 18px;
+    text-align: center;
+}
+
+.lc-gap-apply {
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #e86c00;
+    background: #252540;
+    border: 1px solid #3a3a5a;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.lc-gap-apply:hover { background: #3d2e0a; color: #fff; border-color: #e86c00; }
+
+/* =============================================
+   Canvas Options Bar (above canvas)
+   ============================================= */
+.lc-canvas-options {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+.lc-option-check {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 10px;
+}
+.lc-option-check input { accent-color: var(--accent-orange); cursor: pointer; }
+
+.lc-option-btn {
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #999;
+    background: #252540;
+    border: 1px solid #3a3a5a;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.lc-option-btn:hover { background: #303050; color: #fff; }
+
+/* =============================================
+   AO VIVO / APPLY Toggle
+   ============================================= */
+.lc-live-toggle {
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #999;
+    background: #252540;
+    border: 1px solid #3a3a5a;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+}
+.lc-live-toggle:hover { background: #303050; color: #fff; }
+.lc-live-toggle.active {
+    background: #e86c00;
+    color: #fff;
+    border-color: #e86c00;
+    animation: lc-pulse 1.5s ease-in-out infinite;
+}
+@keyframes lc-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* =============================================
+   Sync Direction Buttons (X-Air style)
+   ============================================= */
+.lc-sync-dir-btn {
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #999;
+    background: #252540;
+    border: 1px solid #3a3a5a;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.lc-sync-dir-btn:hover { background: #1a3a1a; color: #4ade80; border-color: #4ade80; }
+
+/* =============================================
+   Toolbar 2 (second row)
+   ============================================= */
+.lc-toolbar-2 {
+    padding: 4px 10px;
+    gap: 6px;
+    font-size: 10px;
+    flex-wrap: wrap;
+}
+
+/* =============================================
+   Alignment Buttons
+   ============================================= */
+.lc-align-btn {
+    width: 28px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #252540;
+    border: 1px solid #3a3a5a;
+    color: #999;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0;
+    transition: all 0.15s;
+}
+.lc-align-btn svg { width: 18px; height: 18px; }
+.lc-align-btn:hover { background: #303060; border-color: #6366f1; }
+.lc-align-btn:hover svg rect { fill: #ff7a45; }
+.lc-align-btn:hover svg path { stroke: #aaa; }
 

@@ -55,6 +55,10 @@ const STATE = {
         targetInputTitle: '',
         snapEnabled: true,
         layoutMode: 'sim',
+        rendererGapH: 31,
+        rendererGapV: 31,
+        gapLockY: true,
+        gapLiveMode: false,
         _syncTimer: null
     }
 };
@@ -734,8 +738,8 @@ function renderMainInterface() {
                             <button class="lc-target-btn" id="lcTargetBtn" title="Selecionar input">${getIcon('monitor')} <span id="lcTargetLabel">Selecionar input...</span></button>
                             <div class="lc-toolbar-sep"></div>
                             <button class="lc-snap-toggle active" id="lcSnapToggle" title="Snap magnético">${getIcon('grid')} Snap</button>
-                            <button class="lc-sync-btn" id="lcSyncBtn" title="Liga todos os 10 checkboxes no vMix e no app de uma vez, sincronizando o estado de visibilidade">Sync Layers</button>
-                            <button class="lc-trim-btn" id="lcTrimBtn" title="Corta as layers que extrapolam o canvas e resolve sobreposições. Layers com index maior têm prioridade visual (layer 10 = topo, layer 1 = base). Útil após mover layers livremente.">Aparar</button>
+                            <button class="lc-sync-dir-btn" id="lcSyncFromVMix" title="Puxa estado do vMix para o canvas">↓ vMix</button>
+                            <button class="lc-sync-dir-btn" id="lcSyncToVMix" title="Empurra estado do canvas para o vMix">↑ vMix</button>
                             <button class="lc-history-btn" id="lcHistoryBtn" title="Histórico de ações (Ctrl+Z desfaz, Ctrl+Y refaz)">${getIcon('list')}</button>
                             <div class="lc-toolbar-sep"></div>
                             <div class="layer-presets">
@@ -751,6 +755,35 @@ function renderMainInterface() {
                                 <button class="preset-btn" data-preset="auto" title="AUTO (usa todas as layers)"><svg viewBox="0 0 32 18"><rect x="0" y="0" width="32" height="18" rx="2" fill="#333"/><text x="16" y="13" text-anchor="middle" fill="#fff" font-size="13" font-weight="800" font-family="sans-serif">A</text></svg></button>
                             </div>
                         </div>
+                        <div class="lc-toolbar lc-toolbar-2">
+                            <div class="lc-gap-control" title="Gap horizontal entre layers (px)">
+                                <label class="lc-gap-label">H</label>
+                                <input type="range" id="lcGapSliderH" min="0" max="80" value="31" class="lc-gap-slider">
+                                <span id="lcGapValueH" class="lc-gap-value">31</span>
+                            </div>
+                            <div class="lc-gap-control" title="Gap vertical entre layers (px)">
+                                <label class="lc-gap-label">V</label>
+                                <input type="range" id="lcGapSliderV" min="0" max="80" value="31" class="lc-gap-slider">
+                                <span id="lcGapValueV" class="lc-gap-value">31</span>
+                            </div>
+                            <button class="lc-live-toggle" id="lcLiveToggle" title="AO VIVO: aplica gap no vMix ao arrastar slider">APPLY</button>
+                            <button class="lc-gap-apply" id="lcGapApply" title="Aplicar gap">Aplicar</button>
+                            <div class="lc-toolbar-sep"></div>
+                            <label class="lc-option-check"><input type="checkbox" id="lcLockY" checked> Lock Y</label>
+                            <button class="lc-option-btn" id="lcResetY" title="Restaurar Y de todas as layers para altura total">Reset Y</button>
+                            <div class="lc-toolbar-sep"></div>
+                            <button class="lc-sync-btn" id="lcSyncBtn" title="Liga todos os 10 checkboxes no vMix">Sync</button>
+                            <button class="lc-trim-btn" id="lcTrimBtn" title="Aparar layers que extrapolam o canvas">Aparar</button>
+                            <button class="lc-swap-btn" id="lcSwapBtn" title="Inverte a ordem dos inputs">⇄</button>
+                            <div class="lc-toolbar-sep"></div>
+                            <span class="lc-presets-label">ALIGN</span>
+                            <button class="lc-align-btn" id="lcAlignLeft" title="Alinhar à esquerda"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 3v18" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><rect x="5.5" y="5" width="7" height="6" fill="#f25c27" rx="0.5"/><rect x="5.5" y="13" width="12" height="6" fill="#f25c27" rx="0.5"/></svg></button>
+                            <button class="lc-align-btn" id="lcAlignCenterH" title="Alinhar centro horizontal"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3v18" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><rect x="8" y="5" width="8" height="6" fill="#f25c27" rx="0.5"/><rect x="5" y="13" width="14" height="6" fill="#f25c27" rx="0.5"/></svg></button>
+                            <button class="lc-align-btn" id="lcAlignRight" title="Alinhar à direita"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 3v18" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><rect x="11.5" y="5" width="7" height="6" fill="#f25c27" rx="0.5"/><rect x="6.5" y="13" width="12" height="6" fill="#f25c27" rx="0.5"/></svg></button>
+                            <button class="lc-align-btn" id="lcAlignTop" title="Alinhar ao topo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 4h18" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><rect x="5" y="5.5" width="6" height="12" fill="#f25c27" rx="0.5"/><rect x="13" y="5.5" width="6" height="7" fill="#f25c27" rx="0.5"/></svg></button>
+                            <button class="lc-align-btn" id="lcAlignCenterV" title="Alinhar centro vertical"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 12h18" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><rect x="5" y="5" width="6" height="14" fill="#f25c27" rx="0.5"/><rect x="13" y="8" width="6" height="8" fill="#f25c27" rx="0.5"/></svg></button>
+                            <button class="lc-align-btn" id="lcAlignBottom" title="Alinhar à base"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 20h18" stroke="#555" stroke-width="1.5" stroke-linecap="round"/><rect x="5" y="6.5" width="6" height="12" fill="#f25c27" rx="0.5"/><rect x="13" y="11.5" width="6" height="7" fill="#f25c27" rx="0.5"/></svg></button>
+                        </div>
                         <div class="lc-main">
                             <div class="layer-canvas-wrapper">
                                 <div class="layer-canvas" id="layerCanvas"></div>
@@ -758,6 +791,9 @@ function renderMainInterface() {
                             <div class="lc-sidebar">
                                 <div class="lc-sidebar-title">LAYERS</div>
                                 <div class="layer-list" id="layerList"></div>
+                                <div class="lc-sidebar-divider"></div>
+                                <div class="lc-sidebar-title">PROPERTIES</div>
+                                <div class="lc-props-panel" id="lcPropsPanel"></div>
                             </div>
                         </div>
                     </div>
@@ -1276,12 +1312,49 @@ function setupGlobalEvents() {
         document.getElementById('lcSnapToggle')?.classList.toggle('active', STATE.layerControl.snapEnabled);
     });
 
-    // --- Layer Control: Sync Layers button ---
+    // --- Layer Control: Sync buttons ---
     document.getElementById('lcSyncBtn')?.addEventListener('click', () => lcSyncAllLayers());
+    document.getElementById('lcSyncFromVMix')?.addEventListener('click', () => lcPullFromVMix());
+    document.getElementById('lcSyncToVMix')?.addEventListener('click', () => lcPushToVMix());
 
     // --- Layer Control: Aparar button ---
     document.getElementById('lcTrimBtn')?.addEventListener('click', () => lcTrimLayers());
+    document.getElementById('lcSwapBtn')?.addEventListener('click', () => lcSwapInputs());
 
+    // --- Layer Control: Gap sliders H/V + apply + live toggle ---
+    document.getElementById('lcGapSliderH')?.addEventListener('input', e => {
+        STATE.layerControl.rendererGapH = parseInt(e.target.value);
+        document.getElementById('lcGapValueH').textContent = e.target.value;
+        lcRenderCanvas();
+        if (STATE.layerControl.gapLiveMode) lcApplyGap();
+    });
+    document.getElementById('lcGapSliderV')?.addEventListener('input', e => {
+        STATE.layerControl.rendererGapV = parseInt(e.target.value);
+        document.getElementById('lcGapValueV').textContent = e.target.value;
+        lcRenderCanvas();
+        if (STATE.layerControl.gapLiveMode) lcApplyGap();
+    });
+    document.getElementById('lcGapApply')?.addEventListener('click', () => lcApplyGap());
+    document.getElementById('lcLiveToggle')?.addEventListener('click', () => {
+        STATE.layerControl.gapLiveMode = !STATE.layerControl.gapLiveMode;
+        const btn = document.getElementById('lcLiveToggle');
+        btn.textContent = STATE.layerControl.gapLiveMode ? 'AO VIVO' : 'APPLY';
+        btn.classList.toggle('active', STATE.layerControl.gapLiveMode);
+    });
+
+    // --- Layer Control: Lock Crop Y + Reset Y ---
+    document.getElementById('lcLockY')?.addEventListener('change', e => {
+        STATE.layerControl.gapLockY = e.target.checked;
+    });
+    document.getElementById('lcResetY')?.addEventListener('click', () => lcResetCropY());
+
+    // --- Layer Control: Alignment buttons ---
+    document.getElementById('lcAlignLeft')?.addEventListener('click', () => lcAlignLeft());
+    document.getElementById('lcAlignCenterH')?.addEventListener('click', () => lcAlignCenterH());
+    document.getElementById('lcAlignRight')?.addEventListener('click', () => lcAlignRight());
+    document.getElementById('lcAlignTop')?.addEventListener('click', () => lcAlignTop());
+    document.getElementById('lcAlignCenterV')?.addEventListener('click', () => lcAlignCenterV());
+    document.getElementById('lcAlignBottom')?.addEventListener('click', () => lcAlignBottom());
     // --- Layer Control: History panel ---
     document.getElementById('lcHistoryBtn')?.addEventListener('click', () => {
         const history = lcGetHistory();
