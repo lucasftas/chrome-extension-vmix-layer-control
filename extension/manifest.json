@@ -13,8 +13,7 @@
         "tabs"
     ],
     "host_permissions": [
-        "http://*/*",
-        "https://*/*"
+        "http://*/*"
     ],
     "background": {
         "service_worker": "background.js"

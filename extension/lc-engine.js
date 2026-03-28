@@ -11,8 +11,89 @@
 // vMix API: SetLayer{N}PanX, SetLayer{N}Zoom, SetLayer{N}CropX1, etc.
 
 // =============================================
+// COMMAND QUEUE (concurrency-controlled fetch)
+// =============================================
+
+const VMixCommandQueue = {
+    _queue: [],
+    _running: 0,
+    _maxConcurrent: 3,
+    _delayMs: 50,
+    _consecutiveErrors: 0,
+    _maxConsecutiveErrors: 5,
+
+    enqueue(url, options) {
+        return new Promise(resolve => {
+            this._queue.push({ url, options, resolve });
+            this._process();
+        });
+    },
+
+    _process() {
+        if (this._running >= this._maxConcurrent || this._queue.length === 0) return;
+        this._running++;
+        const { url, options, resolve } = this._queue.shift();
+        const run = () => {
+            fetch(url, options)
+                .then(res => {
+                    this._consecutiveErrors = 0;
+                    resolve(res);
+                })
+                .catch(err => {
+                    this._onError(err);
+                    resolve(null);
+                })
+                .finally(() => {
+                    this._running--;
+                    if (this._queue.length > 0) {
+                        setTimeout(() => this._process(), this._delayMs);
+                    }
+                });
+        };
+        if (this._running > 1) {
+            setTimeout(run, this._delayMs);
+        } else {
+            run();
+        }
+    },
+
+    isBusy() {
+        return this._running > 0 || this._queue.length > 0;
+    },
+
+    clear() {
+        const pending = this._queue.splice(0);
+        pending.forEach(item => item.resolve(null));
+    },
+
+    _onError(err) {
+        this._consecutiveErrors++;
+        if (this._consecutiveErrors >= this._maxConsecutiveErrors) {
+            showToast('vMix offline — verifique a conexão');
+            this._consecutiveErrors = 0;
+        }
+    }
+};
+
+// =============================================
 // LAYER MODEL
 // =============================================
+
+function lcMakeOverrides() {
+    return {
+        panX:   { locked: true, value: null },
+        panY:   { locked: true, value: null },
+        zoom:   { locked: true, value: null },
+        cropX1: { locked: true, value: null },
+        cropX2: { locked: true, value: null },
+        cropY1: { locked: true, value: null },
+        cropY2: { locked: true, value: null }
+    };
+}
+
+function lcResetOverrides(layer) {
+    layer._overrides = lcMakeOverrides();
+}
 
 function lcMakeLayer(index) {
     return {
@@ -23,7 +104,8 @@ function lcMakeLayer(index) {
         x: 0, y: 0, w: 1, h: 1,
         hidden: true,
         _posSet: false,
-        _knownState: false
+        _knownState: false,
+        _overrides: lcMakeOverrides()
     };
 }
 
@@ -39,7 +121,8 @@ function lcSnapshotState() {
     return STATE.layerControl.layers.map(l => ({
         index: l.index, inputKey: l.inputKey, inputTitle: l.inputTitle,
         x: l.x, y: l.y, w: l.w, h: l.h,
-        hidden: l.hidden, _knownState: l._knownState, _checkOff: l._checkOff
+        hidden: l.hidden, _knownState: l._knownState, _checkOff: l._checkOff,
+        _overrides: JSON.parse(JSON.stringify(l._overrides))
     }));
 }
 
@@ -76,6 +159,7 @@ function lcRestoreSnapshot(entry) {
         l.inputKey = s.inputKey; l.inputTitle = s.inputTitle;
         l.x = s.x; l.y = s.y; l.w = s.w; l.h = s.h;
         l.hidden = s.hidden; l._knownState = s._knownState; l._checkOff = s._checkOff;
+        l._overrides = s._overrides ? JSON.parse(JSON.stringify(s._overrides)) : lcMakeOverrides();
         l._posSet = true;
     });
     lcRender();
@@ -86,7 +170,7 @@ function lcRestoreSnapshot(entry) {
     lc.layers.forEach(l => {
         if (l.inputKey) {
             const fn = l.hidden ? 'MultiViewOverlayOff' : 'MultiViewOverlayOn';
-            fetch(`${base}?Function=${fn}&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+            VMixCommandQueue.enqueue(`${base}?Function=${fn}&Input=${lc.targetInputKey}&Value=${l.index + 1}`);
             if (!l.hidden) lcSendToVMix(l);
         }
     });
@@ -105,11 +189,13 @@ const LC_CROP_OFFSET_Y = 0.029; // 31/1080
 
 // Normalized (0-1) → vMix API values
 function lcToVMix(l) {
-    const Z = Math.max(l.w, l.h);
+    // When Lock Y is active, force Z = h so cropY stays 0 (no vertical cropping)
+    const lockY = STATE.layerControl.gapLockY;
+    const Z = (lockY && l.w > l.h) ? l.h : Math.max(l.w, l.h);
     const panX = (l.x + l.w / 2) * 2 - 1;
     const panY = 1 - (l.y + l.h / 2) * 2;
-    const cropX = (Z - l.w) / 2 / Z;
-    const cropY = (Z - l.h) / 2 / Z;
+    const cropX = Math.max(0, (Z - l.w) / 2 / Z);
+    const cropY = Math.max(0, (Z - l.h) / 2 / Z);
     return {
         panX: +panX.toFixed(6),
         panY: +panY.toFixed(6),
@@ -192,6 +278,9 @@ function lcApplyPreset(presetId) {
     const lc = STATE.layerControl;
     lcPushUndo(`Preset ${presetId}`);
 
+    // Re-lock all manual overrides when applying presets
+    lc.layers.forEach(l => lcResetOverrides(l));
+
     let boxes;
     if (presetId === 'auto') {
         // AUTO uses only layers with input
@@ -209,7 +298,7 @@ function lcApplyPreset(presetId) {
                 l.hidden = true; l._knownState = true; l._checkOff = true;
                 if (l.inputKey) {
                     const inst = getActiveInstance();
-                    if (inst) fetch(`http://${inst.host}:${inst.port}/api?Function=MultiViewOverlayOff&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+                    if (inst) VMixCommandQueue.enqueue(`http://${inst.host}:${inst.port}/api?Function=MultiViewOverlayOff&Input=${lc.targetInputKey}&Value=${l.index + 1}`);
                 }
             }
         });
@@ -226,7 +315,7 @@ function lcApplyPreset(presetId) {
                 l.hidden = true; l._knownState = true; l._checkOff = true;
                 if (l.inputKey) {
                     const inst = getActiveInstance();
-                    if (inst) fetch(`http://${inst.host}:${inst.port}/api?Function=MultiViewOverlayOff&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+                    if (inst) VMixCommandQueue.enqueue(`http://${inst.host}:${inst.port}/api?Function=MultiViewOverlayOff&Input=${lc.targetInputKey}&Value=${l.index + 1}`);
                 }
             }
         }
@@ -246,7 +335,7 @@ function lcApplyPreset(presetId) {
     
         active.forEach(l => {
         
-            fetch(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${l.index + 1}`).catch(() => {});
+            VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${l.index + 1}`);
             lcSendToVMix(l);
         });
 
@@ -301,12 +390,9 @@ async function lcVerifyAndResend(expectedLayers, attempt) {
 
             if (Object.keys(mismatches).length > 0) {
                 hadMismatch = true;
-
                 for (const [k, v] of Object.entries(mismatches)) {
-                    fetch(`${base}?Function=SetLayer${N}${k}&Input=${tk}&Value=${v}`).catch(() => {});
+                    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}${k}&Input=${tk}&Value=${v}`);
                 }
-            } else {
-
             }
         }
 
@@ -434,6 +520,29 @@ function lcSnap(v) {
     return v;
 }
 
+// Snap with layer edges: snaps to grid + edges/centers of other visible layers
+function lcSnapToLayers(v, excludeIdx, axis) {
+    const lc = STATE.layerControl;
+    // Start with grid targets
+    const targets = [0, 0.25, 1/3, 0.5, 2/3, 0.75, 1];
+    // Add edges and centers of other visible layers
+    lc.layers.forEach((l, i) => {
+        if (i === excludeIdx || l.hidden || !l.inputKey) return;
+        if (axis === 'x') {
+            targets.push(l.x, l.x + l.w, l.x + l.w / 2); // left, right, centerX
+        } else {
+            targets.push(l.y, l.y + l.h, l.y + l.h / 2); // top, bottom, centerY
+        }
+    });
+    let best = v;
+    let bestDist = LC_SNAP_DEADZONE;
+    for (const t of targets) {
+        const d = Math.abs(v - t);
+        if (d < bestDist) { bestDist = d; best = t; }
+    }
+    return best;
+}
+
 function lcClamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
 // =============================================
@@ -543,22 +652,32 @@ function lcUpdateRowVisuals() {
     });
 }
 
-// Full render (canvas + rebuild layer list)
+// Full render (canvas + rebuild layer list + properties panel)
 function lcRender() {
     lcRenderCanvas();
     lcRenderLayerList();
+    lcRenderPropsPanel();
 }
 
 function _lcRenderBoxes(canvas, lc, cW, cH) {
 
+    // Gap visual: half-gap inset per edge (full gap between two adjacent layers)
+    const halfGapX = (lcGetGapH() / 2 / 1920) * cW;
+    const halfGapY = STATE.layerControl.gapLockY ? 0 : (lcGetGapV() / 2 / 1080) * cH;
+
     lc.layers.forEach((l, i) => {
         if (l.hidden) return;
         const b = lcToCanvas(l, cW, cH);
+        // Apply gap inset: shrink each edge by half-gap, but not at canvas borders (0 or 1)
+        const insetL = l.x > 0.001 ? halfGapX : 0;
+        const insetR = (l.x + l.w) < 0.999 ? halfGapX : 0;
+        const insetT = l.y > 0.001 ? halfGapY : 0;
+        const insetB = (l.y + l.h) < 0.999 ? halfGapY : 0;
         const isSel = i === lc.selectedLayer;
         const hasInput = !!l.inputKey;
         const box = document.createElement('div');
         box.className = 'lc-box' + (isSel ? ' selected' : '') + (hasInput ? '' : ' lc-box-empty');
-        box.style.cssText = `left:${b.left}px;top:${b.top}px;width:${b.width}px;height:${b.height}px;border-color:${l.color};`;
+        box.style.cssText = `left:${b.left + insetL}px;top:${b.top + insetT}px;width:${b.width - insetL - insetR}px;height:${b.height - insetT - insetB}px;border-color:${l.color};`;
         box.innerHTML = `<div class="lc-box-bg" style="background:${l.color};"></div>
             <div class="lc-box-inner">
                 <div class="lc-box-label">Layer ${l.index + 1}</div>
@@ -733,16 +852,16 @@ function lcRenderLayerList() {
                 l._knownState = true;
                 l._checkOff = false;
                 l.hidden = false;
-                fetch(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${N}`).catch(() => {});
+                VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${N}`);
                 if (l.inputKey) setTimeout(() => lcSendToVMix(l), 100);
             } else {
                 l.hidden = !check.checked;
                 if (l.hidden) {
                     l._checkOff = true;
-                    fetch(`${base}?Function=MultiViewOverlayOff&Input=${tk}&Value=${N}`).catch(() => {});
+                    VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOff&Input=${tk}&Value=${N}`);
                 } else {
                     l._checkOff = false;
-                    fetch(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${N}`).catch(() => {});
+                    VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${N}`);
                     setTimeout(() => lcSendToVMix(l), 100);
                 }
             }
@@ -832,6 +951,109 @@ function lcRenderLayerList() {
 }
 
 // =============================================
+// PROPERTIES PANEL (manual vMix-style adjustments)
+// =============================================
+
+const LC_PROPS_FIELDS = [
+    { key: 'zoom',   label: 'Zoom' },
+    { key: 'panX',   label: 'Pan X' },
+    { key: 'panY',   label: 'Pan Y' },
+    { key: 'cropX1', label: 'Crop X1' },
+    { key: 'cropX2', label: 'Crop X2' },
+    { key: 'cropY1', label: 'Crop Y1' },
+    { key: 'cropY2', label: 'Crop Y2' }
+];
+
+function lcRenderPropsPanel() {
+    const panel = document.getElementById('lcPropsPanel');
+    if (!panel) return;
+
+    const lc = STATE.layerControl;
+    const selIdx = lc.selectedLayer;
+    const layer = lc.layers[selIdx];
+    if (!layer) { panel.innerHTML = ''; return; }
+
+    const vm = lcToVMix(layer);
+
+    // Build dropdown
+    let html = '<div class="lc-props-header">';
+    html += '<select id="lcPropsLayerSelect" class="lc-props-select">';
+    for (let i = 0; i < 10; i++) {
+        const l = lc.layers[i];
+        const label = `${i + 1}${l.inputTitle ? ' — ' + l.inputTitle : ''}`;
+        html += `<option value="${i}"${i === selIdx ? ' selected' : ''}>${label}</option>`;
+    }
+    html += '</select></div>';
+
+    // Build field rows
+    html += '<div class="lc-props-fields">';
+    LC_PROPS_FIELDS.forEach(f => {
+        const ov = layer._overrides[f.key];
+        const locked = ov.locked;
+        const displayVal = locked ? (vm[f.key] ?? 0) : (ov.value ?? 0);
+        const roundedVal = typeof displayVal === 'number' ? +displayVal.toFixed(4) : displayVal;
+
+        html += `<div class="lc-props-row">`;
+        html += `<span class="lc-props-label">${f.label}</span>`;
+        html += `<input type="number" class="lc-props-input" data-field="${f.key}" value="${roundedVal}" step="0.001" ${locked ? 'readonly' : ''}>`;
+        html += `<button class="lc-props-lock${locked ? '' : ' unlocked'}" data-field="${f.key}" title="${locked ? 'Destrancar para edição manual' : 'Trancar (usar valor automático)'}">${locked ? '🔒' : '🔓'}</button>`;
+        html += `<button class="lc-props-reset${locked ? ' hidden' : ''}" data-field="${f.key}" title="Resetar para valor automático">↺</button>`;
+        html += `</div>`;
+    });
+    html += '</div>';
+
+    panel.innerHTML = html;
+
+    // Wire events — dropdown
+    document.getElementById('lcPropsLayerSelect')?.addEventListener('change', e => {
+        lc.selectedLayer = parseInt(e.target.value);
+        lcRender();
+    });
+
+    // Wire events — lock toggles
+    panel.querySelectorAll('.lc-props-lock').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const field = btn.dataset.field;
+            const ov = layer._overrides[field];
+            if (ov.locked) {
+                // Unlock: copy computed value as starting point
+                ov.locked = false;
+                ov.value = vm[field] ?? 0;
+            } else {
+                // Re-lock: clear manual value
+                ov.locked = true;
+                ov.value = null;
+                lcSendToVMix(layer);
+            }
+            lcRenderPropsPanel();
+        });
+    });
+
+    // Wire events — number inputs
+    panel.querySelectorAll('.lc-props-input').forEach(input => {
+        input.addEventListener('change', () => {
+            const field = input.dataset.field;
+            const ov = layer._overrides[field];
+            if (ov.locked) return;
+            ov.value = parseFloat(input.value) || 0;
+            lcSendToVMix(layer);
+        });
+    });
+
+    // Wire events — reset buttons
+    panel.querySelectorAll('.lc-props-reset').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const field = btn.dataset.field;
+            const ov = layer._overrides[field];
+            ov.locked = true;
+            ov.value = null;
+            lcSendToVMix(layer);
+            lcRenderPropsPanel();
+        });
+    });
+}
+
+// =============================================
 // MOUSE DRAG (SplitView: Free + Snap modes)
 // =============================================
 
@@ -846,9 +1068,24 @@ document.addEventListener('mousemove', e => {
         const l = lc.layers[_lcDrag.i];
         let nx = mx - _lcDrag.tx, ny = my - _lcDrag.ty;
         if (lc.snapEnabled) {
-            nx = lcSnap(nx); ny = lcSnap(ny);
-            const rx = lcSnap(nx + l.w); if (rx !== nx + l.w) nx = rx - l.w;
-            const by = lcSnap(ny + l.h); if (by !== ny + l.h) ny = by - l.h;
+            // Snap all 3 reference points per axis (left/center/right, top/center/bottom)
+            const idx = _lcDrag.i;
+            const snapL = lcSnapToLayers(nx, idx, 'x');
+            const snapCX = lcSnapToLayers(nx + l.w / 2, idx, 'x');
+            const snapR = lcSnapToLayers(nx + l.w, idx, 'x');
+            // Pick the closest snap
+            const dL = Math.abs(snapL - nx), dCX = Math.abs(snapCX - (nx + l.w / 2)), dR = Math.abs(snapR - (nx + l.w));
+            if (dL <= dCX && dL <= dR) nx = snapL;
+            else if (dCX <= dR) nx = snapCX - l.w / 2;
+            else nx = snapR - l.w;
+
+            const snapT = lcSnapToLayers(ny, idx, 'y');
+            const snapCY = lcSnapToLayers(ny + l.h / 2, idx, 'y');
+            const snapB = lcSnapToLayers(ny + l.h, idx, 'y');
+            const dT = Math.abs(snapT - ny), dCY = Math.abs(snapCY - (ny + l.h / 2)), dB = Math.abs(snapB - (ny + l.h));
+            if (dT <= dCY && dT <= dB) ny = snapT;
+            else if (dCY <= dB) ny = snapCY - l.h / 2;
+            else ny = snapB - l.h;
         }
         l.x = +lcClamp(nx, 0, Math.max(0, 1 - l.w)).toFixed(6);
         l.y = +lcClamp(ny, 0, Math.max(0, 1 - l.h)).toFixed(6);
@@ -870,6 +1107,8 @@ document.addEventListener('mousemove', e => {
             if (isH) {
                 if (Math.abs((o.x + o.w) - borderVal) < EPS) l.w = +Math.max(0.01, nb - o.x).toFixed(6);
                 if (Math.abs(o.x - borderVal) < EPS) { l.x = +nb.toFixed(6); l.w = +Math.max(0.01, (o.x + o.w) - nb).toFixed(6); }
+                // Lock Y: cap w to h so canvas matches vMix (Z = h when w > h)
+                if (lc.gapLockY && l.w > l.h) l.w = l.h;
             } else {
                 if (Math.abs((o.y + o.h) - borderVal) < EPS) l.h = +Math.max(0.01, nb - o.y).toFixed(6);
                 if (Math.abs(o.y - borderVal) < EPS) { l.y = +nb.toFixed(6); l.h = +Math.max(0.01, (o.y + o.h) - nb).toFixed(6); }
@@ -912,14 +1151,21 @@ function lcSendToVMix(layer) {
     const N = layer.index + 1;
     const tk = lc.targetInputKey;
     const vm = lcToVMix(layer);
+    // Apply manual overrides (unlocked fields)
+    const ov = layer._overrides;
+    if (ov) {
+        for (const f of ['panX','panY','zoom','cropX1','cropX2','cropY1','cropY2']) {
+            if (!ov[f].locked && ov[f].value !== null) vm[f] = ov[f].value;
+        }
+    }
     // Fire-and-forget: all 7 commands in parallel (Companion style)
-    fetch(`${base}?Function=SetLayer${N}PanX&Input=${tk}&Value=${vm.panX}`).catch(() => {});
-    fetch(`${base}?Function=SetLayer${N}PanY&Input=${tk}&Value=${vm.panY}`).catch(() => {});
-    fetch(`${base}?Function=SetLayer${N}Zoom&Input=${tk}&Value=${vm.zoom}`).catch(() => {});
-    fetch(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${vm.cropX1}`).catch(() => {});
-    fetch(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${vm.cropX2}`).catch(() => {});
-    fetch(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${vm.cropY1}`).catch(() => {});
-    fetch(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${vm.cropY2}`).catch(() => {});
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}PanX&Input=${tk}&Value=${vm.panX}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}PanY&Input=${tk}&Value=${vm.panY}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}Zoom&Input=${tk}&Value=${vm.zoom}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${vm.cropX1}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${vm.cropX2}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${vm.cropY1}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${vm.cropY2}`);
 }
 
 let _lcThrottleTimer = null;
@@ -933,17 +1179,222 @@ function lcSendAllToVMix() {
     STATE.layerControl.layers.forEach(l => { if (!l.hidden && l.inputKey) lcSendToVMix(l); });
 }
 
+// Sync bidirecional (estilo X-Air)
+async function lcPullFromVMix() {
+    STATE.layerControl.layers.forEach(l => { l._posSet = false; });
+    await lcFetchInputLayers();
+    lcRender();
+    showToast('Canvas atualizado do vMix');
+}
+
+function lcPushToVMix() {
+    lcSendAllToVMix();
+    showToast('Canvas enviado ao vMix');
+}
+
+// Reset Crop Y — restaura todas as layers ativas para altura total
+function lcResetCropY() {
+    const lc = STATE.layerControl;
+    const active = lc.layers.filter(l => !l.hidden && l.inputKey);
+    if (!active.length) { showToast('Nenhuma layer ativa'); return; }
+    lcPushUndo('Reset Y');
+    active.forEach(l => {
+        l.y = 0;
+        l.h = 1;
+        l._posSet = true;
+    });
+    lcRender();
+    active.forEach(l => lcSendToVMix(l));
+    showToast('Crop Y resetado');
+}
+
+// =============================================
+// ALIGNMENT FUNCTIONS
+// =============================================
+
+function _lcGetActive() {
+    return STATE.layerControl.layers.filter(l => !l.hidden && l.inputKey);
+}
+
+// Align to canvas (artboard): always uses canvas bounds (0-1) as reference
+// Applies to the selected layer only
+
+function _lcAlignApply(layer, action) {
+    lcPushUndo(action);
+    layer._posSet = true;
+    lcRender();
+    lcSendToVMix(layer);
+    showToast(action);
+}
+
+function _lcGetSel() {
+    const lc = STATE.layerControl;
+    const l = lc.layers[lc.selectedLayer];
+    return (l && !l.hidden && l.inputKey) ? l : null;
+}
+
+function lcAlignLeft() {
+    const l = _lcGetSel(); if (!l) return;
+    l.x = 0;
+    _lcAlignApply(l, 'Alinhar esquerda');
+}
+
+function lcAlignRight() {
+    const l = _lcGetSel(); if (!l) return;
+    l.x = +(1 - l.w).toFixed(6);
+    _lcAlignApply(l, 'Alinhar direita');
+}
+
+function lcAlignCenterH() {
+    const l = _lcGetSel(); if (!l) return;
+    l.x = +(0.5 - l.w / 2).toFixed(6);
+    _lcAlignApply(l, 'Alinhar centro H');
+}
+
+function lcAlignTop() {
+    const l = _lcGetSel(); if (!l) return;
+    l.y = 0;
+    _lcAlignApply(l, 'Alinhar topo');
+}
+
+function lcAlignBottom() {
+    const l = _lcGetSel(); if (!l) return;
+    l.y = +(1 - l.h).toFixed(6);
+    _lcAlignApply(l, 'Alinhar base');
+}
+
+function lcAlignCenterV() {
+    const l = _lcGetSel(); if (!l) return;
+    l.y = +(0.5 - l.h / 2).toFixed(6);
+    _lcAlignApply(l, 'Alinhar centro V');
+}
+
 // Trim layers: read vMix XML, crop what exceeds canvas, send crop-only updates
 // PanX/PanY/Zoom don't change — only CropX1/X2/Y1/Y2 are adjusted
 // vMix renderer expands each crop edge ~15.5px (31px total gap needed between layers)
-const LC_RENDERER_GAP = 31;
+function lcGetGapH() { return STATE.layerControl.rendererGapH ?? 31; }
+function lcGetGapV() { return STATE.layerControl.rendererGapV ?? 31; }
+
+// Apply gap between layers using normalized coordinates (0-1)
+// Works within the SplitView model: adjusts x, y, w, h then sends via lcSendToVMix
+function lcApplyGap() {
+    const lc = STATE.layerControl;
+    if (!lc.targetInputKey) { showToast('Sem input selecionado'); return; }
+
+    const active = lc.layers.filter(l => !l.hidden && l.inputKey);
+    if (active.length < 2) { showToast('Precisa de pelo menos 2 layers ativas'); return; }
+
+    lcPushUndo('Aplicar gap');
+
+    // When Lock Y is active, capture current cropY values BEFORE changing w
+    // so we can preserve them after (changing w can change Z which changes cropY)
+    const savedCropY = {};
+    if (lc.gapLockY) {
+        active.forEach(l => {
+            const vm = lcToVMix(l);
+            savedCropY[l.index] = { cropY1: vm.cropY1, cropY2: vm.cropY2 };
+        });
+    }
+
+    const gapH = lcGetGapH() / 1920; // normalize to 0-1
+    const gapV = lcGetGapV() / 1080;
+    let changedCount = 0;
+
+    // For each pair, determine axis and enforce gap
+    for (let i = 0; i < active.length; i++) {
+        for (let j = i + 1; j < active.length; j++) {
+            const a = active[i], b = active[j];
+            const aCX = a.x + a.w / 2, aCY = a.y + a.h / 2;
+            const bCX = b.x + b.w / 2, bCY = b.y + b.h / 2;
+
+            // Determine primary axis (normalized for 16:9)
+            const distH = Math.abs(aCX - bCX);
+            const distV = Math.abs(aCY - bCY) * (1920 / 1080);
+
+            if (distH >= distV) {
+                // Horizontal pair — check Y overlap first
+                const yOverlap = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+                if (yOverlap <= 0) continue;
+
+                const left = aCX <= bCX ? a : b;
+                const right = left === a ? b : a;
+                const currentGap = right.x - (left.x + left.w);
+                const diff = currentGap - gapH;
+
+                if (Math.abs(diff) > 0.001) {
+                    const half = diff / 2;
+                    left.w = +(left.w + half).toFixed(6);
+                    right.x = +(right.x - half).toFixed(6);
+                    right.w = +(right.w + half).toFixed(6);
+                    // Lock Y: cap w to h so canvas matches vMix
+                    if (lc.gapLockY) {
+                        if (left.w > left.h) left.w = left.h;
+                        if (right.w > right.h) right.w = right.h;
+                    }
+                    left._posSet = true; right._posSet = true;
+                    changedCount++;
+                }
+            } else {
+                // Vertical pair — skip if Y is locked
+                if (lc.gapLockY) continue;
+                const xOverlap = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+                if (xOverlap <= 0) continue;
+
+                const top = aCY <= bCY ? a : b;
+                const bot = top === a ? b : a;
+                const currentGap = bot.y - (top.y + top.h);
+                const diff = currentGap - gapV;
+
+                if (Math.abs(diff) > 0.001) {
+                    const half = diff / 2;
+                    top.h = +(top.h + half).toFixed(6);
+                    bot.y = +(bot.y - half).toFixed(6);
+                    bot.h = +(bot.h + half).toFixed(6);
+                    top._posSet = true; bot._posSet = true;
+                    changedCount++;
+                }
+            }
+        }
+    }
+
+    if (changedCount > 0) {
+        // When Lock Y: temporarily override cropY to preserved values before sending
+        if (lc.gapLockY) {
+            active.forEach(l => {
+                const saved = savedCropY[l.index];
+                if (saved) {
+                    l._overrides.cropY1.locked = false;
+                    l._overrides.cropY1.value = saved.cropY1;
+                    l._overrides.cropY2.locked = false;
+                    l._overrides.cropY2.value = saved.cropY2;
+                }
+            });
+        }
+        lcRender();
+        active.forEach(l => lcSendToVMix(l));
+        // Restore overrides after sending
+        if (lc.gapLockY) {
+            active.forEach(l => {
+                l._overrides.cropY1.locked = true; l._overrides.cropY1.value = null;
+                l._overrides.cropY2.locked = true; l._overrides.cropY2.value = null;
+            });
+        }
+        showToast(`Gap aplicado em ${changedCount} par(es)`);
+    } else {
+        showToast('Gap já está no valor desejado');
+    }
+}
 
 async function lcTrimLayers() {
     const lc = STATE.layerControl;
     const inst = getActiveInstance();
-    if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
+    if (!inst || inst.status !== 'online' || !lc.targetInputKey) {
+        showToast('Sem instância conectada ou input selecionado');
+        return;
+    }
     lcPushUndo('Aparar');
 
+    try {
     const res = await fetch(`http://${inst.host}:${inst.port}/api`, { signal: AbortSignal.timeout(5000) });
     const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
     const inputEl = Array.from(doc.getElementsByTagName('input')).find(el => el.getAttribute('key') === lc.targetInputKey);
@@ -952,7 +1403,8 @@ async function lcTrimLayers() {
     const base = `http://${inst.host}:${inst.port}/api`;
     const tk = lc.targetInputKey;
     const W = 1920, H = 1080;
-    const GAP = LC_RENDERER_GAP;
+    const GAP_H = lcGetGapH();
+    const GAP_V = lcGetGapV();
 
     // Parse all overlays into working objects
     const layers = [];
@@ -986,54 +1438,119 @@ async function lcTrimLayers() {
         // Left/top: trim exact (no GAP needed at canvas origin)
         if (visL < 0) { l.cX1 = +(l.cX1 + (-visL / l.w)).toFixed(6); l.changed = true; }
         if (visT < 0) { l.cY1 = +(l.cY1 + (-visT / l.h)).toFixed(6); l.changed = true; }
-        // Right/bottom: trim with renderer GAP compensation
-        if (visR > W - GAP) { l.cX2 = +(l.cX2 - ((visR - W + GAP) / l.w)).toFixed(6); l.changed = true; }
-        if (visB > H - GAP) { l.cY2 = +(l.cY2 - ((visB - H + GAP) / l.h)).toFixed(6); l.changed = true; }
+        // Right/bottom: trim to canvas edge (fixed renderer compensation, independent of gap slider)
+        if (visR > W) { l.cX2 = +(l.cX2 - ((visR - W) / l.w)).toFixed(6); l.changed = true; }
+        if (visB > H) { l.cY2 = +(l.cY2 - ((visB - H) / l.h)).toFixed(6); l.changed = true; }
     }
 
-    // Step 2: Resolve overlaps (higher index = priority, rendered on top)
-    const sorted = [...layers].sort((a, b) => b.idx - a.idx);
-    for (let ti = 0; ti < sorted.length; ti++) {
-        const top = sorted[ti];
-        // Top layer's visible rect (after trim)
-        const topL = top.x + (top.cX1 * top.w);
-        const topR = top.x + (top.cX2 * top.w);
+    // Step 2: Enforce exact gap between layer pairs
+    // Determine primary axis by comparing center distance: if horizontal distance > vertical → H pair, else V pair
+    for (let i = 0; i < layers.length; i++) {
+        for (let j = i + 1; j < layers.length; j++) {
+            const a = layers[i], b = layers[j];
+            const aL = a.x + (a.cX1 * a.w), aR = a.x + (a.cX2 * a.w);
+            const aT = a.y + (a.cY1 * a.h), aB = a.y + (a.cY2 * a.h);
+            const aCX = (aL + aR) / 2, aCY = (aT + aB) / 2;
+            const bL = b.x + (b.cX1 * b.w), bR = b.x + (b.cX2 * b.w);
+            const bT = b.y + (b.cY1 * b.h), bB = b.y + (b.cY2 * b.h);
+            const bCX = (bL + bR) / 2, bCY = (bT + bB) / 2;
 
-        for (let bi = ti + 1; bi < sorted.length; bi++) {
-            const bot = sorted[bi];
-            const botL = bot.x + (bot.cX1 * bot.w);
-            const botR = bot.x + (bot.cX2 * bot.w);
+            // Determine primary axis: normalize distances to account for 16:9 aspect ratio
+            const distH = Math.abs(aCX - bCX) / W;
+            const distV = Math.abs(aCY - bCY) / H;
 
-            // Check overlap including renderer GAP
-            if (botR > topL - GAP && botL < topR + GAP) {
-                // Trim bottom layer — choose side with least loss
-                const trimFromRight = botR - (topL - GAP);
-                const trimFromLeft = (topR + GAP) - botL;
-
-                if (trimFromRight < trimFromLeft) {
-                    bot.cX2 = +((topL - GAP - bot.x) / bot.w).toFixed(6);
-                } else {
-                    bot.cX1 = +((topR + GAP - bot.x) / bot.w).toFixed(6);
+            if (distH >= distV) {
+                // Horizontal pair — enforce GAP_H between facing X edges
+                const yOverlap = Math.min(aB, bB) - Math.max(aT, bT);
+                if (yOverlap <= 0) continue; // no vertical band shared
+                const left = aCX <= bCX ? a : b;
+                const right = left === a ? b : a;
+                const leftR = left.x + (left.cX2 * left.w);
+                const rightL = right.x + (right.cX1 * right.w);
+                const currentGap = rightL - leftR;
+                const diff = currentGap - GAP_H;
+                if (Math.abs(diff) > 1) {
+                    const halfDiff = diff / 2;
+                    left.cX2 = +((leftR + halfDiff - left.x) / left.w).toFixed(6);
+                    left.changed = true;
+                    right.cX1 = +((rightL - halfDiff - right.x) / right.w).toFixed(6);
+                    right.changed = true;
                 }
-                bot.changed = true;
+            } else {
+                // Vertical pair — enforce GAP_V between facing Y edges
+                const xOverlap = Math.min(aR, bR) - Math.max(aL, bL);
+                if (xOverlap <= 0) continue; // no horizontal band shared
+                const top = aCY <= bCY ? a : b;
+                const bot = top === a ? b : a;
+                const topB2 = top.y + (top.cY2 * top.h);
+                const botT2 = bot.y + (bot.cY1 * bot.h);
+                const currentGap = botT2 - topB2;
+                const diff = currentGap - GAP_V;
+                if (Math.abs(diff) > 1) {
+                    const halfDiff = diff / 2;
+                    top.cY2 = +((topB2 + halfDiff - top.y) / top.h).toFixed(6);
+                    top.changed = true;
+                    bot.cY1 = +((botT2 - halfDiff - bot.y) / bot.h).toFixed(6);
+                    bot.changed = true;
+                }
             }
         }
     }
 
     // Step 3: Send updated crops
+    let changedCount = 0;
     for (const l of layers) {
         if (l.changed) {
+            changedCount++;
             const N = l.idx + 1;
-            await fetch(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${l.cX1}`);
-            await fetch(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${l.cX2}`);
-            await fetch(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${l.cY1}`);
-            await fetch(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${l.cY2}`);
+            await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${l.cX1}`);
+            await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${l.cX2}`);
+            await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${l.cY1}`);
+            await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${l.cY2}`);
+        }
+    }
+
+    // Step 4: Verify and retry (max 2 attempts)
+    if (changedCount > 0) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            await new Promise(r => setTimeout(r, 800));
+            const res2 = await fetch(`${base}`, { signal: AbortSignal.timeout(5000) });
+            const doc2 = new DOMParser().parseFromString(await res2.text(), 'text/xml');
+            const inputEl2 = Array.from(doc2.getElementsByTagName('input')).find(el => el.getAttribute('key') === tk);
+            if (!inputEl2) break;
+            let mismatches = 0;
+            for (const l of layers) {
+                if (!l.changed) continue;
+                const ov2 = Array.from(inputEl2.getElementsByTagName('overlay')).find(o => parseInt(o.getAttribute('index')) === l.idx);
+                if (!ov2) continue;
+                const crop2 = ov2.getElementsByTagName('crop')[0];
+                if (!crop2) continue;
+                const tol = 0.002;
+                const curX1 = parseFloat(crop2.getAttribute('X1') || '0');
+                const curX2 = parseFloat(crop2.getAttribute('X2') || '1');
+                const curY1 = parseFloat(crop2.getAttribute('Y1') || '0');
+                const curY2 = parseFloat(crop2.getAttribute('Y2') || '1');
+                if (Math.abs(curX1 - l.cX1) > tol || Math.abs(curX2 - l.cX2) > tol ||
+                    Math.abs(curY1 - l.cY1) > tol || Math.abs(curY2 - l.cY2) > tol) {
+                    mismatches++;
+                    const N = l.idx + 1;
+                    await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${l.cX1}`);
+                    await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${l.cX2}`);
+                    await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${l.cY1}`);
+                    await VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${l.cY2}`);
+                }
+            }
+            if (mismatches === 0) break;
         }
     }
 
     await lcFetchInputLayers();
     lcRender();
-    showToast('Layers aparadas');
+    showToast(changedCount > 0 ? `${changedCount} layer(s) aparada(s)` : 'Nenhuma layer precisou de ajuste');
+    } catch (err) {
+        console.error('lcTrimLayers error:', err);
+        showToast('Erro ao aparar: ' + err.message);
+    }
 }
 
 // Sync all 10 layers: turn ON all checkboxes in vMix and app
@@ -1048,9 +1565,28 @@ function lcSyncAllLayers() {
         l._knownState = true;
         l._checkOff = false;
         l.hidden = false;
-        fetch(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${i + 1}`).catch(() => {});
+        VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOn&Input=${tk}&Value=${i + 1}`);
     }
     lcRender();
+}
+
+function lcSwapInputs() {
+    const lc = STATE.layerControl;
+    const inst = getActiveInstance();
+    if (!inst || inst.status !== 'online' || !lc.targetInputKey) return;
+    const active = lc.layers.filter(l => l.inputKey && !l.hidden);
+    if (active.length < 2) { showToast('Mínimo 2 layers para inverter'); return; }
+    lcPushUndo('Inverter');
+    const positions = active.map(l => ({ x: l.x, y: l.y, w: l.w, h: l.h }));
+    positions.reverse();
+    active.forEach((l, i) => {
+        l.x = positions[i].x; l.y = positions[i].y;
+        l.w = positions[i].w; l.h = positions[i].h;
+        l._posSet = true;
+        lcSendToVMix(l);
+    });
+    lcRender();
+    showToast('Layers invertidas');
 }
 
 function lcAssignLayerInput(layerIndex, sourceKey) {
@@ -1060,9 +1596,8 @@ function lcAssignLayerInput(layerIndex, sourceKey) {
     const base = `http://${inst.host}:${inst.port}/api`;
     const N = layerIndex + 1;
     // 1. Assign input to layer slot, 2. Turn on checkbox
-    fetch(`${base}?Function=SetMultiViewOverlay&Input=${lc.targetInputKey}&Value=${N},${sourceKey}`)
-        .then(() => fetch(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${N}`))
-        .catch(err => console.warn('[vMix] assign error:', err));
+    VMixCommandQueue.enqueue(`${base}?Function=SetMultiViewOverlay&Input=${lc.targetInputKey}&Value=${N},${sourceKey}`)
+        .then(() => VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${N}`));
 }
 
 function lcRemoveLayerInput(layerIndex) {
@@ -1072,9 +1607,8 @@ function lcRemoveLayerInput(layerIndex) {
     const base = `http://${inst.host}:${inst.port}/api`;
     const N = layerIndex + 1;
     // Remove input from slot, then turn checkbox ON → result: None + ON
-    fetch(`${base}?Function=SetMultiViewOverlay&Input=${lc.targetInputKey}&Value=${N},`)
-        .then(() => fetch(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${N}`))
-        .catch(err => console.warn('[vMix] remove error:', err));
+    VMixCommandQueue.enqueue(`${base}?Function=SetMultiViewOverlay&Input=${lc.targetInputKey}&Value=${N},`)
+        .then(() => VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOn&Input=${lc.targetInputKey}&Value=${N}`));
 }
 // =============================================
 // BIDIRECTIONAL SYNC (poll vMix every 1s)
@@ -1087,6 +1621,7 @@ function lcStopSync() { if (STATE.layerControl._syncTimer) { clearInterval(STATE
 
 async function lcSyncFromVMix() {
     if (_lcDrag) return;
+    if (VMixCommandQueue.isBusy()) return;
     const lc = STATE.layerControl;
     const inst = getActiveInstance();
     if (!inst || inst.status !== 'online' || !lc.targetInputKey || STATE.activeTab !== 'layers') return;
