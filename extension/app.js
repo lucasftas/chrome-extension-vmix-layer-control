@@ -792,8 +792,11 @@ function renderMainInterface() {
                                 <div class="lc-sidebar-title">LAYERS</div>
                                 <div class="layer-list" id="layerList"></div>
                                 <div class="lc-sidebar-divider"></div>
-                                <div class="lc-sidebar-title">PROPERTIES</div>
-                                <div class="lc-props-panel" id="lcPropsPanel"></div>
+                                <div class="lc-props-toggle" id="lcPropsToggle">
+                                    <span class="lc-props-toggle-arrow" id="lcPropsArrow">&#9654;</span>
+                                    <span>PROPERTIES</span>
+                                </div>
+                                <div class="lc-props-panel collapsed" id="lcPropsPanel"></div>
                             </div>
                         </div>
                     </div>
@@ -1319,6 +1322,16 @@ function setupGlobalEvents() {
 
     // --- Layer Control: Aparar button ---
     document.getElementById('lcTrimBtn')?.addEventListener('click', () => lcTrimLayers());
+
+    // --- Layer Control: Properties panel toggle (collapsible) ---
+    document.getElementById('lcPropsToggle')?.addEventListener('click', () => {
+        const panel = document.getElementById('lcPropsPanel');
+        const arrow = document.getElementById('lcPropsArrow');
+        if (panel) {
+            panel.classList.toggle('collapsed');
+            if (arrow) arrow.textContent = panel.classList.contains('collapsed') ? '\u25B6' : '\u25BC';
+        }
+    });
     document.getElementById('lcSwapBtn')?.addEventListener('click', () => lcSwapInputs());
 
     // --- Layer Control: Gap sliders H/V + apply + live toggle ---
