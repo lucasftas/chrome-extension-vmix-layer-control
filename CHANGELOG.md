@@ -3,6 +3,34 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.1.0] — 2026-03-29
+
+### Added
+- Propriedade `trim` no modelo da layer para crops assimétricos sem deslocar conteúdo
+- `lcApplyRendererOffset` isolado — offset de 31px aplicado apenas no despacho API
+- `lcEnforceGapLockY` como constraint no modelo (não mais na conversão)
+- `lcVisibleRect` calcula área visível após trim
+- Reescrita completa do `lcTrimLayers` com oclusão por Z-index
+- Modal SVG interativo para conflitos de sobreposição em L (corner overlap)
+- Helpers: `lcVMixBase`, `lcSetDefaultPos`, `lcActivateAndSend`, `lcSetupDropTarget`
+- `TEST-CHECKLIST.md` com 12 categorias e ~90 testes manuais
+- Properties panel collapsible (recolhido por padrão)
+
+### Changed
+- `lcToVMix` agora é função pura — gera crops assimétricos via `l.trim`
+- `lcFromVMix` decompõe crop vMix em base simétrica + trim assimétrico
+- `lcIntersect` e `lcClassifyOverlap` operam sobre área visível (não caixa base)
+- `lcAutoTrimAxis` e `lcClampToCanvas` usam `Math.max` (sem acúmulo)
+- Presets nomeados aplicam boxes apenas a layers com input
+- Sidebar, layer list e properties sem barra de rolagem vertical
+- Undo/Redo snapshot inclui propriedade trim
+- Manifest version bump 3.0.0 → 3.1.0
+
+### Fixed
+- `_busy` flag leak em `lcVerifyAndResend` (sync travava após erro de rede)
+- Checkboxes não ativavam ao aplicar presets nomeados em layers com input
+- Round-trip matemático corrigido — canvas = vMix em todos os presets
+
 ## [3.0.1] — 2026-03-27
 
 ### Added
