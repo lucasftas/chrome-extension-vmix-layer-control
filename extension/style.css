@@ -2363,7 +2363,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    overflow-y: auto;
+    overflow-y: hidden;
 }
 
 .lc-sidebar-title {
@@ -2534,8 +2534,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 50%;
-    overflow-y: auto;
+    overflow-y: hidden;
     flex-shrink: 0;
 }
 
@@ -2619,6 +2618,26 @@ body {
     flex-shrink: 0;
 }
 
+.lc-props-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    padding: 2px 4px;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+.lc-props-toggle:hover { color: var(--accent-orange); }
+.lc-props-toggle-arrow {
+    font-size: 8px;
+    transition: transform 0.2s;
+}
+
 /* =============================================
    Properties Panel
    ============================================= */
@@ -2626,9 +2645,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    transition: max-height 0.2s ease, opacity 0.2s ease;
+}
+.lc-props-panel.collapsed {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    gap: 0;
 }
 
 .lc-props-header {
@@ -2902,6 +2927,19 @@ body {
     transition: all 0.15s;
 }
 .lc-align-btn svg { width: 18px; height: 18px; }
+
+/* =============================================
+   Trim Conflict Modal — SVG Preview
+   ============================================= */
+.lc-trim-preview {
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    border-radius: 6px;
+    border: 1px solid #2a2a3a;
+    margin: 8px auto;
+    display: block;
+}
 .lc-align-btn:hover { background: #303060; border-color: #6366f1; }
 .lc-align-btn:hover svg rect { fill: #ff7a45; }
 .lc-align-btn:hover svg path { stroke: #aaa; }
