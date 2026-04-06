@@ -59,3 +59,7 @@ CropY = (Z - h) / 2 / Z  →  CropY1 = CropY, CropY2 = 1 - CropY - 0.029 (se cro
 - Limpar layers usa `SetMultiViewOverlay&Value=N,` + `MultiViewOverlayOn` (None + ON)
 - Undo: snapshot completo das 10 layers, max 30 etapas, em memória
 - Canvas: 16:9 fixo calculado via JS com ResizeObserver, margem mínima 20px
+
+## Instaladores
+
+Sempre que o projeto gerar um instalador funcional (`.exe`, `.msi`, `.dmg`, `.AppImage`, etc.), salvar a última versão funcional na pasta `~Instaladores/` na raiz do projeto. Manter apenas a versão mais recente. Se o projeto não gera instalador, ignorar esta regra.
