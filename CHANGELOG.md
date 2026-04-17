@@ -3,6 +3,29 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.1.1] — 2026-04-17
+
+### Fixed
+- **P1** Canvas deixava de mostrar gap dobrado: inset visual agora só se aplica em edges realmente coladas no modelo
+- **P2** `lcApplyGap` processava todos os pares `(i,j)` e engolia layers do meio em layouts 3+; substituído por duas passadas ordenadas (H por `x`, V por `y`) operando apenas em pares consecutivos
+- **P3** `lcEnforceGapLockY` anulava o ajuste mas `changedCount++` já havia rodado — agora há rollback e toast honesto
+- **P4** Ordem determinística via `sort` prévio (cada par opera em coords não invalidadas por outros)
+- **P5** `lcApplyGap` agora zera `l.trim` antes do loop (mesmo padrão de `lcApplyPreset`)
+- **P6** `yOverlap/xOverlap` com tolerância EPS=0.0005 aceita edges exatamente coladas (grade 2×2, 4grid)
+- **P7** Slider V recebe classe `.lc-gap-disabled` (opacity 0.35, pointer-events none) quando `gapLockY=true`
+- **P8** `LC_CROP_OFFSET_X/Y` hardcoded migrados para `STATE.rendererOffsetX/Y` via getters `lcGetRendererOffsetX/Y`
+- **P9** Debounce de 150ms no live mode evita flood de requests durante arrasto do slider
+
+### Changed
+- Defaults `rendererGapH` e `rendererGapV` de 31 → **0** (layouts colados por padrão; gap é opt-in)
+- Sliders H/V iniciam em `value="0"`
+- Heurística `distH >= distV` removida — eixo é decidido pela passada H ou V, não por distância dos centros
+
+### Added
+- Snapshots `extensionV0` a `extensionV8` versionando cada fase da refatoração (uma pasta por fix incremental, carregável direto em `chrome://extensions` para rollback)
+- Função `lcUpdateGapControlsUI` para sincronizar estado visual do slider V com `gapLockY`
+- Classe CSS `.lc-gap-disabled` no container do slider
+
 ## [3.1.0] — 2026-03-29
 
 ### Added
