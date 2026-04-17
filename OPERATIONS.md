@@ -1,5 +1,9 @@
 # Operations Log
 
+## 2026-04-17 (v3.1.3)
+- [x] Removida pasta `extensionV9/` — `extension/` única fonte de verdade
+- [x] Release v3.1.3 publicada (limpeza estrutural, sem mudança funcional)
+
 ## 2026-04-17 (v3.1.2)
 - [x] Teste empírico com vMix 29 no Input 16 revelou gap residual de ~31px no MultiView após aplicar preset 5050 — valores do painel (cropX2=0.75) divergiam do vMix (1409 = 0.734) pelo offset de compensação
 - [x] Decisão: zerar `rendererOffsetX/Y` (0.016/0.029 → 0/0) — aceitar overlap de 31px mascarado pelo Z-order em troca de cola limpa no MultiView
