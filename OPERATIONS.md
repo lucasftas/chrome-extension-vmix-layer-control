@@ -1,5 +1,23 @@
 # Operations Log
 
+## 2026-04-17
+- [x] Análise detalhada de "como funciona o gap entre layers" (renderer offset vs slider H/V, visual inset, lcApplyGap)
+- [x] Auditoria crítica: 9 problemas de lógica identificados (P1 canvas dobrado, P2 pares não-adjacentes, P3 enforce silencioso, P4 ordem mutativa, P5 trim persistente, P6 epsilon overlap, P7 slider V morto, P8 offset hardcoded, P9 flood live mode)
+- [x] Plano por fases aprovado (escolhas: todos os 9, P2 via sort+consecutivos, P1 preview só com gap=0, vMix disponível)
+- [x] Fase 0: Instrumentação temporária de `lcApplyGap` com `console.groupCollapsed`
+- [x] Decisão: default `rendererGapH/V` = 0 (era 31) — layouts colados por padrão
+- [x] Fase 1: P3 rollback pós-enforce + P6 EPS=0.0005 em overlaps
+- [x] Fase 2: P2 duas passadas ordenadas (sort por x/y, pares consecutivos), fim da heurística `distH/distV`
+- [x] Fase 3: P5 trim reset pré-loop; P4 resolvido indiretamente pela ordenação da Fase 2
+- [x] Fase 4: P1 render com vizinhança consciente (`layerInsets[]`) — inset só em edges realmente coladas
+- [x] Fase 5: P7 slider V com `.lc-gap-disabled` atrelado a `gapLockY`
+- [x] Fase 6: P9 debounce 150ms no live mode via `scheduleLiveGap()`
+- [x] Fase 7: P8 offset hardcoded → getters `lcGetRendererOffsetX/Y` sobre `STATE.rendererOffsetX/Y`
+- [x] Fase 8: Remoção dos `console.log` de instrumentação
+- [x] Criação de 9 snapshots versionados em pastas (`extensionV0` a `extensionV8`) — cada fase rollback-friendly
+- [x] Validação de sintaxe JS (`node -c`) em todos os 9 snapshots + pasta viva
+- [x] Release v3.1.1 publicada no GitHub com notas detalhadas por problema
+
 ## 2026-03-29
 - [x] Fase 1: Correção matemática — lcToVMix puro, lcFromVMix com decomposição trim, lcApplyRendererOffset isolado
 - [x] Validação round-trip via terminal (curl + node) com vMix real — 50/50, 67/33, Triple, 4Grid

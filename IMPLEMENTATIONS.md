@@ -1,5 +1,39 @@
 # Implementations
 
+## v3.1.1 — 2026-04-17
+
+### Refatoração profunda de `lcApplyGap` (9 bugs de lógica corrigidos)
+
+- **Duas passadas ordenadas**: substituído loop duplo `(i,j)` por (1) ordenação por `x` e processamento de pares consecutivos com `yOverlap`, depois (2) ordenação por `y` com `xOverlap`. Elimina o bug de engolir layers intermediárias em layouts 3+ colunas.
+- **EPS = 0.0005**: tolerância em `yOverlap/xOverlap` que aceita edges exatamente coladas (antes pulava grade 2×2 e 4grid).
+- **Snapshot + rollback no enforce**: `lcEnforceGapLockY` pode anular ajuste de `w`; agora há verificação pós-mutação — se não moveu, restaura coords e não conta como mudança. Toast reflete realidade.
+- **Trim reset pré-loop**: `active.forEach(l => l.trim = lcMakeTrim())` no início, igual a `lcApplyPreset`. Evita crops assimétricos fantasma sobre geometria nova.
+- **Heurística `distH >= distV` removida**: eixo é determinado pela passada, não por proximidade de centros.
+
+### Render visual com vizinhança consciente
+
+- `_lcRenderBoxes` agora calcula `layerInsets[]` analisando quais edges realmente tocam outras layers no modelo. Inset só aplica nessas edges específicas — elimina o "gap dobrado" (inset + gap real somados) após `lcApplyGap`.
+
+### UX do slider V
+
+- Nova função `lcUpdateGapControlsUI` sincroniza estado visual: container `.lc-gap-disabled` (opacity 0.35 + pointer-events none) quando `gapLockY=true`.
+
+### Live mode saudável
+
+- Debounce de 150ms no dispatch via `scheduleLiveGap()` com `_gapLiveTimer`. Inset visual continua em tempo real (feedback imediato), mas a rede recebe só o valor estabilizado.
+
+### Renderer offset configurável
+
+- `LC_CROP_OFFSET_X/Y` hardcoded viraram `STATE.layerControl.rendererOffsetX/Y` (defaults 0.016 / 0.029) acessados via `lcGetRendererOffsetX()` / `lcGetRendererOffsetY()`. Calibrável sem editar código.
+
+### Versionamento em pastas
+
+- 9 snapshots `extensionV0` a `extensionV8` gravam cada fase incremental da refatoração. Cada pasta é uma extensão Chrome válida independente. Rollback granular: basta carregar outra pasta em `chrome://extensions`.
+
+### Mudança de default
+
+- `rendererGapH = 0`, `rendererGapV = 0` (eram 31). Presets agora aplicam layouts matematicamente colados; gap é opt-in explícito via slider.
+
 ## v3.1.0 — 2026-03-29
 - **Math Pura**: `lcToVMix` refatorado como função pura (sem gapLockY, sem offset). `lcApplyRendererOffset` isolado para despacho API
 - **lcFromVMix**: decompõe crop do vMix em base simétrica + trim assimétrico — suporta dados "sujos" criados manualmente no vMix
