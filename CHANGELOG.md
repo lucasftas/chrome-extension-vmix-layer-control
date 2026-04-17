@@ -3,6 +3,17 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.1.2] — 2026-04-17
+
+### Changed
+- `rendererOffsetX/Y` default: **0.016/0.029 → 0/0** — layers coladas no modelo agora renderizam sem gap no vMix (cropX2 vai para 1440 em vez de 1409 no preset 5050)
+
+### Removed
+- Snapshots incrementais `extensionV0` a `extensionV8` — apenas `extensionV9` (consolidada) permanece
+
+### Known Issues (tech debt)
+- Renderer do vMix 29 expande cada edge de crop ~15.5px internamente. Com offset=0, layers adjacentes no modelo produzem overlap de ~31px na faixa central. Z-order mascara visualmente, mas borda/shadow da layer inferior pode ficar oclusa. Fix planejado: compensação simétrica em cropX1 e cropX2 ou controle fino via UI avançada.
+
 ## [3.1.1] — 2026-04-17
 
 ### Fixed

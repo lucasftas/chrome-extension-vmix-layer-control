@@ -1,5 +1,23 @@
 # Implementations
 
+## v3.1.2 — 2026-04-17
+
+### Renderer offset zerado por padrão
+
+- `STATE.layerControl.rendererOffsetX` e `rendererOffsetY` alterados de `0.016/0.029` (31px horizontal / 31px vertical) para `0/0`.
+- Motivo: após aplicar preset 5050 no Input 16, o vMix renderizava com gap visível de ~31px entre Layer 1 e Layer 2. A compensação que existia para evitar overlap do renderer estava criando o problema oposto (gap em vez de cola).
+- Agora `lcApplyRendererOffset` retorna valores idênticos ao `lcToVMix` puro — painel de propriedades e vMix exibem os mesmos números.
+
+### Consolidação em V9
+
+- Removidos os 9 snapshots incrementais `extensionV0`–`extensionV8` do repositório (um por fase da refatoração da v3.1.1).
+- `extensionV9` consolidada como versão de trabalho, em sync com `extension/`.
+- Rollback para versões intermediárias da v3.1.1 continua possível via histórico git (commit `3d5c3d7`).
+
+### Tech debt registrado
+
+Overlap de 31px esperado com offset=0 devido à expansão interna de edge do renderer vMix 29. Mascarado pelo Z-order na maioria dos presets. Fix definitivo planejado: compensação simétrica (cropX1 += n, cropX2 -= n) em vez de unilateral.
+
 ## v3.1.1 — 2026-04-17
 
 ### Refatoração profunda de `lcApplyGap` (9 bugs de lógica corrigidos)

@@ -1,6 +1,15 @@
 # Operations Log
 
-## 2026-04-17
+## 2026-04-17 (v3.1.2)
+- [x] Teste empírico com vMix 29 no Input 16 revelou gap residual de ~31px no MultiView após aplicar preset 5050 — valores do painel (cropX2=0.75) divergiam do vMix (1409 = 0.734) pelo offset de compensação
+- [x] Decisão: zerar `rendererOffsetX/Y` (0.016/0.029 → 0/0) — aceitar overlap de 31px mascarado pelo Z-order em troca de cola limpa no MultiView
+- [x] Snapshot `extensionV9` criado e consolidado como versão ativa
+- [x] Sync: `extension/` atualizada com mesmo offset zerado
+- [x] Limpeza: snapshots V0–V8 removidos do repo (disponíveis via git history no commit `3d5c3d7`)
+- [x] Tech debt anotado em memory: compensação simétrica (cropX1+n / cropX2-n) como fix definitivo futuro
+- [x] Release v3.1.2 publicada
+
+## 2026-04-17 (v3.1.1)
 - [x] Análise detalhada de "como funciona o gap entre layers" (renderer offset vs slider H/V, visual inset, lcApplyGap)
 - [x] Auditoria crítica: 9 problemas de lógica identificados (P1 canvas dobrado, P2 pares não-adjacentes, P3 enforce silencioso, P4 ordem mutativa, P5 trim persistente, P6 epsilon overlap, P7 slider V morto, P8 offset hardcoded, P9 flood live mode)
 - [x] Plano por fases aprovado (escolhas: todos os 9, P2 via sort+consecutivos, P1 preview só com gap=0, vMix disponível)
