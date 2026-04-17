@@ -214,9 +214,8 @@ function lcGetHistoryIdx() { return _lcHistoryIdx; }
 // =============================================
 
 // vMix renderer offset compensation (~31px overlap at 1920x1080)
-// Valores configuráveis via STATE.layerControl.rendererOffsetX/Y (defaults em app.js).
-function lcGetRendererOffsetX() { return STATE.layerControl.rendererOffsetX ?? 0.016; }
-function lcGetRendererOffsetY() { return STATE.layerControl.rendererOffsetY ?? 0.029; }
+const LC_CROP_OFFSET_X = 0.016; // 31/1920
+const LC_CROP_OFFSET_Y = 0.029; // 31/1080
 
 // Normalized (0-1) → vMix API values (pure math, no side effects)
 // Pan/Zoom computed from x,y,w,h (geometry stays intact).
@@ -246,8 +245,8 @@ function lcToVMix(l) {
 function lcApplyRendererOffset(vm) {
     return {
         ...vm,
-        cropX2: +(vm.cropX2 - (vm.cropX1 > 0.001 ? lcGetRendererOffsetX() : 0)).toFixed(6),
-        cropY2: +(vm.cropY2 - (vm.cropY1 > 0.001 ? lcGetRendererOffsetY() : 0)).toFixed(6)
+        cropX2: +(vm.cropX2 - (vm.cropX1 > 0.001 ? LC_CROP_OFFSET_X : 0)).toFixed(6),
+        cropY2: +(vm.cropY2 - (vm.cropY1 > 0.001 ? LC_CROP_OFFSET_Y : 0)).toFixed(6)
     };
 }
 
@@ -263,8 +262,8 @@ function lcEnforceGapLockY(layer) {
 function lcFromVMix(panX, panY, zoom, cropX1, cropY1, cropX2, cropY2) {
     const Z = zoom || 1;
     // Reverse renderer offset if cropX2/cropY2 available
-    const cx2 = (cropX2 != null) ? cropX2 + (cropX1 > 0.001 ? lcGetRendererOffsetX() : 0) : 1 - cropX1;
-    const cy2 = (cropY2 != null) ? cropY2 + (cropY1 > 0.001 ? lcGetRendererOffsetY() : 0) : 1 - cropY1;
+    const cx2 = (cropX2 != null) ? cropX2 + (cropX1 > 0.001 ? LC_CROP_OFFSET_X : 0) : 1 - cropX1;
+    const cy2 = (cropY2 != null) ? cropY2 + (cropY1 > 0.001 ? LC_CROP_OFFSET_Y : 0) : 1 - cropY1;
     // Isolate symmetric base crop (the smaller of left/right, top/bottom)
     const baseCropX = Math.min(cropX1, 1 - cx2);
     const baseCropY = Math.min(cropY1, 1 - cy2);
@@ -1291,16 +1290,6 @@ function lcPushToVMix() {
     showToast('Canvas enviado ao vMix');
 }
 
-// Atualiza visual do slider V: atenuado e inativo quando gapLockY está ligado
-function lcUpdateGapControlsUI() {
-    const sliderV = document.getElementById('lcGapSliderV');
-    if (!sliderV) return;
-    const container = sliderV.closest('.lc-gap-control');
-    const locked = !!STATE.layerControl.gapLockY;
-    sliderV.disabled = locked;
-    if (container) container.classList.toggle('lc-gap-disabled', locked);
-}
-
 // Reset Crop Y — restaura todas as layers ativas para altura total
 function lcResetCropY() {
     const lc = STATE.layerControl;
@@ -1406,17 +1395,24 @@ function lcApplyGap() {
     // EPS for overlap/move detection (covers edges exatamente coladas e rollback de enforce)
     const EPS = 0.0005;
 
+    // [FASE 0 INSTRUMENTAÇÃO TEMPORÁRIA — remover na Fase 8]
+    console.groupCollapsed(`[lcApplyGap] gapH=${lcGetGapH()}px (${gapH.toFixed(4)}) gapV=${lcGetGapV()}px (${gapV.toFixed(4)}) lockY=${lc.gapLockY} active=${active.length}`);
+    console.log('active layers:', active.map(l => ({ idx: l.index, x: +l.x.toFixed(4), y: +l.y.toFixed(4), w: +l.w.toFixed(4), h: +l.h.toFixed(4) })));
+
     // ── Passada H: ordenar por x, processar APENAS pares consecutivos com yOverlap ≥ -EPS
     const byX = [...active].sort((a, b) => a.x - b.x);
     for (let i = 0; i < byX.length - 1; i++) {
         const left = byX[i], right = byX[i + 1];
         const yOverlap = Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y);
-        if (yOverlap < -EPS) continue;
+        if (yOverlap < -EPS) { console.log(`H par (${left.index + 1},${right.index + 1}): pulado yOverlap=${yOverlap.toFixed(4)}`); continue; }
 
         const currentGap = right.x - (left.x + left.w);
-        if (currentGap < -EPS) continue;
+        // Pula se layers se sobrepõem em X (não são vizinhas reais, são conflitantes)
+        if (currentGap < -EPS) { console.log(`H par (${left.index + 1},${right.index + 1}): pulado sobreposto currentGap=${currentGap.toFixed(4)}`); continue; }
 
         const diff = currentGap - gapH;
+        console.log(`H par (${left.index + 1},${right.index + 1}): currentGap=${currentGap.toFixed(4)} target=${gapH.toFixed(4)} diff=${diff.toFixed(4)}`);
+
         if (Math.abs(diff) > 0.001) {
             const half = diff / 2;
             const snap = { lw: left.w, rx: right.x, rw: right.w };
@@ -1433,8 +1429,10 @@ function lcApplyGap() {
             if (moved) {
                 left._posSet = true; right._posSet = true;
                 changedCount++;
+                console.log(`  → left.w ${snap.lw.toFixed(4)}→${left.w.toFixed(4)}, right.x ${snap.rx.toFixed(4)}→${right.x.toFixed(4)}, right.w ${snap.rw.toFixed(4)}→${right.w.toFixed(4)}`);
             } else {
                 left.w = snap.lw; right.x = snap.rx; right.w = snap.rw;
+                console.log(`  → enforce anulou a mutação, rollback aplicado (gapLockY trava w=h)`);
             }
         }
     }
@@ -1445,12 +1443,14 @@ function lcApplyGap() {
         for (let i = 0; i < byY.length - 1; i++) {
             const top = byY[i], bot = byY[i + 1];
             const xOverlap = Math.min(top.x + top.w, bot.x + bot.w) - Math.max(top.x, bot.x);
-            if (xOverlap < -EPS) continue;
+            if (xOverlap < -EPS) { console.log(`V par (${top.index + 1},${bot.index + 1}): pulado xOverlap=${xOverlap.toFixed(4)}`); continue; }
 
             const currentGap = bot.y - (top.y + top.h);
-            if (currentGap < -EPS) continue;
+            if (currentGap < -EPS) { console.log(`V par (${top.index + 1},${bot.index + 1}): pulado sobreposto currentGap=${currentGap.toFixed(4)}`); continue; }
 
             const diff = currentGap - gapV;
+            console.log(`V par (${top.index + 1},${bot.index + 1}): currentGap=${currentGap.toFixed(4)} target=${gapV.toFixed(4)} diff=${diff.toFixed(4)}`);
+
             if (Math.abs(diff) > 0.001) {
                 const half = diff / 2;
                 const snap = { th: top.h, by: bot.y, bh: bot.h };
@@ -1465,12 +1465,19 @@ function lcApplyGap() {
                 if (moved) {
                     top._posSet = true; bot._posSet = true;
                     changedCount++;
+                    console.log(`  → top.h ${snap.th.toFixed(4)}→${top.h.toFixed(4)}, bot.y ${snap.by.toFixed(4)}→${bot.y.toFixed(4)}, bot.h ${snap.bh.toFixed(4)}→${bot.h.toFixed(4)}`);
                 } else {
                     top.h = snap.th; bot.y = snap.by; bot.h = snap.bh;
+                    console.log(`  → mutação não persistiu, rollback`);
                 }
             }
         }
+    } else {
+        console.log('passada V pulada (gapLockY ativo)');
     }
+
+    console.log(`changedCount=${changedCount}`);
+    console.groupEnd();
 
     if (changedCount > 0) {
         lcRender();

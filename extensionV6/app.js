@@ -57,8 +57,6 @@ const STATE = {
         layoutMode: 'sim',
         rendererGapH: 0,
         rendererGapV: 0,
-        rendererOffsetX: 0.016,   // 31/1920 — compensação do overlap do renderer vMix (ajustável via STATE)
-        rendererOffsetY: 0.029,   // 31/1080
         gapLockY: true,
         gapLiveMode: false,
         _syncTimer: null
