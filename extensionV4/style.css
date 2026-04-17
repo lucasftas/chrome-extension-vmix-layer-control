@@ -2757,12 +2757,6 @@ body {
     align-items: center;
     gap: 4px;
     padding: 0 4px;
-    transition: opacity 0.15s ease;
-}
-
-.lc-gap-control.lc-gap-disabled {
-    opacity: 0.35;
-    pointer-events: none;
 }
 
 .lc-gap-label {
