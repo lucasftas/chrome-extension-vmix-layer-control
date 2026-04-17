@@ -1,5 +1,11 @@
 # Implementations
 
+## v3.1.3 — 2026-04-17
+
+### Limpeza estrutural
+- Removida pasta `extensionV9/` do repo. `extension/` já continha o mesmo estado consolidado — manter ambas gerava risco de dessincronia em futuras edições.
+- Sem mudança funcional; release é apenas para marcar a limpeza.
+
 ## v3.1.2 — 2026-04-17
 
 ### Renderer offset zerado por padrão

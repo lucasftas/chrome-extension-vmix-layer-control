@@ -3,6 +3,11 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.1.3] — 2026-04-17
+
+### Removed
+- Pasta `extensionV9/` — `extension/` é a única fonte de verdade, já em estado V9. Evita dessincronia entre pasta viva e snapshot.
+
 ## [3.1.2] — 2026-04-17
 
 ### Changed
