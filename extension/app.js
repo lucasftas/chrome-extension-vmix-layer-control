@@ -743,6 +743,15 @@ function renderMainInterface() {
                     <div class="filters-bar" id="filters-container"></div>
                     <div class="inputs-grid-container"><div class="inputs-grid" id="inputs-grid"></div></div>
                 </div>
+
+                <!-- COPY HISTORY (Deck only) -->
+                <div class="copy-history-panel" id="copyHistoryPanel">
+                    <div class="ch-header">
+                        <span style="display:flex;align-items:center;gap:6px;font-weight:bold;font-size:12px;color:#ddd;">${getIcon('list')} Histórico</span>
+                        <button class="ch-clear" id="copyHistoryClear" title="Limpar histórico">${getIcon('trash')}</button>
+                    </div>
+                    <div class="ch-list" id="copyHistoryList"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -946,6 +955,10 @@ function setupGlobalEvents() {
     // --- Tab switching (Deck / Layer Control) ---
     document.getElementById('tabDeck')?.addEventListener('click', () => switchPanelTab('deck'));
     document.getElementById('tabLayers')?.addEventListener('click', () => switchPanelTab('layers'));
+
+    // --- Copy history: clear button + initial render ---
+    document.getElementById('copyHistoryClear')?.addEventListener('click', clearCopyHistory);
+    renderCopyHistory();
 
     // --- Layer Control preset buttons ---
     document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => {
@@ -1586,6 +1599,89 @@ function getInputStyle(type, isFile = false) {
     return { bgClass: def.c, icon: def.i };
 }
 
+// =============================================
+// COPY HISTORY (v4) — 50 entradas max em vmix_copy_history
+// =============================================
+
+const COPY_HISTORY_MAX = 50;
+const COPY_HISTORY_KEY = 'vmix_copy_history';
+
+function loadCopyHistory() {
+    try {
+        const raw = localStorage.getItem(COPY_HISTORY_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
+}
+
+function saveCopyHistory(arr) {
+    localStorage.setItem(COPY_HISTORY_KEY, JSON.stringify(arr));
+}
+
+function recordCopy(data) {
+    const history = loadCopyHistory();
+    const entry = {
+        ts: Date.now(),
+        number: data.number || '—',
+        title: data.title || data.shortTitle || '',
+        shortTitle: data.shortTitle || '',
+        guid: data.key
+    };
+    history.unshift(entry);
+    if (history.length > COPY_HISTORY_MAX) history.length = COPY_HISTORY_MAX;
+    saveCopyHistory(history);
+    renderCopyHistory();
+}
+
+function recopyFromHistory(guid) {
+    const doFeedback = () => showToast('GUID recopiado!');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(guid).then(doFeedback).catch(() => fallbackCopy(guid, doFeedback));
+    else fallbackCopy(guid, doFeedback);
+}
+
+function clearCopyHistory() {
+    if (!confirm('Limpar todo o histórico de cópias?')) return;
+    saveCopyHistory([]);
+    renderCopyHistory();
+    showToast('Histórico limpo');
+}
+
+function formatHistoryTs(ts) {
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+}
+
+function renderCopyHistory() {
+    const panel = document.getElementById('copyHistoryList');
+    if (!panel) return;
+    const history = loadCopyHistory();
+    if (history.length === 0) {
+        panel.innerHTML = `<div class="ch-empty">Nenhuma cópia ainda. Clique em um input para copiar o GUID.</div>`;
+        return;
+    }
+    panel.innerHTML = history.map(h => `
+        <div class="ch-row">
+            <div class="ch-row-head">
+                <span class="ch-ts">${formatHistoryTs(h.ts)}</span>
+                <span class="ch-num">#${h.number}</span>
+            </div>
+            <div class="ch-title" title="${escapeAttr(h.title)}">${escapeHtml(h.shortTitle || h.title)}</div>
+            <div class="ch-guid" title="${escapeAttr(h.guid)}">${escapeHtml(h.guid)}</div>
+            <button class="ch-recopy" data-guid="${escapeAttr(h.guid)}" title="Copiar novamente">${getIcon('copy')} Copiar</button>
+        </div>`).join('');
+    panel.querySelectorAll('.ch-recopy').forEach(btn => {
+        btn.addEventListener('click', () => recopyFromHistory(btn.dataset.guid));
+    });
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
 function copyData(data, btn) {
     const text = data.key;
     const feedback = () => {
@@ -1593,6 +1689,7 @@ function copyData(data, btn) {
         btn.style.transition = 'background 0.2s';
         btn.style.background = '#d97706';
         setTimeout(() => btn.style.background = '', 300);
+        recordCopy(data);
     };
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(feedback).catch(() => fallbackCopy(text, feedback));
     else fallbackCopy(text, feedback);
@@ -1635,12 +1732,17 @@ function switchPanelTab(tab) {
     deckContent.classList.toggle('hidden', tab !== 'deck');
     layerContent.classList.toggle('hidden', tab !== 'layers');
 
+    // Copy History visível apenas no modo Deck
+    const historyPanel = document.getElementById('copyHistoryPanel');
+    if (historyPanel) historyPanel.classList.toggle('hidden', tab !== 'deck');
+
     // Theme switching
     const root = document.getElementById('app-root');
     if (root) root.className = tab === 'deck' ? 'theme-deck' : 'theme-layers';
 
     // Re-render inputs to update click behavior
     renderInputs();
+    if (tab === 'deck') renderCopyHistory();
 
     if (tab === 'layers') {
         if (!STATE.layerControl.targetInputKey) {
