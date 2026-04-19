@@ -631,6 +631,7 @@ function renderMainInterface() {
             <div class="sidebar-header">
                 <span class="sidebar-logo">GUID Panel</span>
                 <span class="sidebar-version">v1</span>
+                <button id="btnSidebarClose" class="btn-sidebar-close" title="Fechar (Esc)">${getIcon('x')}</button>
             </div>
             <div class="sidebar-instances" id="sidebar-instances"></div>
             <div class="sidebar-add-area">
@@ -933,6 +934,13 @@ function setupGlobalEvents() {
     document.getElementById('btnSidebarAdd')?.addEventListener('click', showSidebarAddForm);
     document.getElementById('btnConfig')?.addEventListener('click', showConfigPanel);
     document.getElementById('btnSidebarToggle')?.addEventListener('click', toggleSidebar);
+    document.getElementById('btnSidebarClose')?.addEventListener('click', closeSidebar);
+    // Esc fecha sidebar quando aberta (sem interferir em modais — modals interceptam antes)
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && document.querySelector('.app-layout.sidebar-open') && !document.querySelector('.modal-overlay.visible')) {
+            closeSidebar();
+        }
+    });
     document.getElementById('btnRefresh')?.addEventListener('click', async () => {
         const inst = getActiveInstance();
         if (!inst) { showToast('Selecione uma instância'); return; }
@@ -1723,6 +1731,11 @@ function toggleSidebar() {
     const open = !layout.classList.contains('sidebar-open');
     applySidebarState(open);
     localStorage.setItem(SIDEBAR_STATE_KEY, open ? '1' : '0');
+}
+
+function closeSidebar() {
+    applySidebarState(false);
+    localStorage.setItem(SIDEBAR_STATE_KEY, '0');
 }
 
 function showToast(msg) {

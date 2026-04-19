@@ -320,6 +320,28 @@ body {
     font-weight: bold;
 }
 
+.btn-sidebar-close {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid #2a2f3f;
+    color: #7a7faf;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+.btn-sidebar-close:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    border-color: #4a4f6f;
+}
+.btn-sidebar-close svg { width: 13px; height: 13px; }
+
 .sidebar-instances {
     flex: 1;
     overflow-y: auto;
