@@ -55,12 +55,9 @@ const STATE = {
         targetInputTitle: '',
         snapEnabled: true,
         layoutMode: 'sim',
-        rendererGapH: 0,
-        rendererGapV: 0,
         rendererOffsetX: 0,       // V9 — sem compensação de renderer (gap=0 absoluto no vMix)
         rendererOffsetY: 0,
         gapLockY: true,
-        gapLiveMode: false,
         _syncTimer: null
     }
 };
@@ -758,19 +755,6 @@ function renderMainInterface() {
                             </div>
                         </div>
                         <div class="lc-toolbar lc-toolbar-2">
-                            <div class="lc-gap-control" title="Gap horizontal entre layers (px)">
-                                <label class="lc-gap-label">H</label>
-                                <input type="range" id="lcGapSliderH" min="0" max="80" value="0" class="lc-gap-slider">
-                                <span id="lcGapValueH" class="lc-gap-value">0</span>
-                            </div>
-                            <div class="lc-gap-control" title="Gap vertical entre layers (px)">
-                                <label class="lc-gap-label">V</label>
-                                <input type="range" id="lcGapSliderV" min="0" max="80" value="0" class="lc-gap-slider">
-                                <span id="lcGapValueV" class="lc-gap-value">0</span>
-                            </div>
-                            <button class="lc-live-toggle" id="lcLiveToggle" title="AO VIVO: aplica gap no vMix ao arrastar slider">APPLY</button>
-                            <button class="lc-gap-apply" id="lcGapApply" title="Aplicar gap">Aplicar</button>
-                            <div class="lc-toolbar-sep"></div>
                             <label class="lc-option-check"><input type="checkbox" id="lcLockY" checked> Lock Y</label>
                             <button class="lc-option-btn" id="lcResetY" title="Restaurar Y de todas as layers para altura total">Reset Y</button>
                             <div class="lc-toolbar-sep"></div>
@@ -1154,45 +1138,12 @@ function setupGlobalEvents() {
 
     document.getElementById('lcSwapBtn')?.addEventListener('click', () => lcSwapInputs());
 
-    // --- Layer Control: Gap sliders H/V + apply + live toggle ---
-    // Debounce live-mode dispatch: evita flood de requests enquanto arrasta o slider.
-    // Inset visual continua atualizando em tempo real via lcRenderCanvas().
-    let _gapLiveTimer = null;
-    const scheduleLiveGap = () => {
-        if (!STATE.layerControl.gapLiveMode) return;
-        clearTimeout(_gapLiveTimer);
-        _gapLiveTimer = setTimeout(() => lcApplyGap(), 150);
-    };
-    document.getElementById('lcGapSliderH')?.addEventListener('input', e => {
-        STATE.layerControl.rendererGapH = parseInt(e.target.value);
-        document.getElementById('lcGapValueH').textContent = e.target.value;
-        lcRenderCanvas();
-        scheduleLiveGap();
-    });
-    document.getElementById('lcGapSliderV')?.addEventListener('input', e => {
-        STATE.layerControl.rendererGapV = parseInt(e.target.value);
-        document.getElementById('lcGapValueV').textContent = e.target.value;
-        lcRenderCanvas();
-        scheduleLiveGap();
-    });
-    document.getElementById('lcGapApply')?.addEventListener('click', () => lcApplyGap());
-    document.getElementById('lcLiveToggle')?.addEventListener('click', () => {
-        STATE.layerControl.gapLiveMode = !STATE.layerControl.gapLiveMode;
-        const btn = document.getElementById('lcLiveToggle');
-        btn.textContent = STATE.layerControl.gapLiveMode ? 'AO VIVO' : 'APPLY';
-        btn.classList.toggle('active', STATE.layerControl.gapLiveMode);
-    });
-
     // --- Layer Control: Lock Crop Y + Reset Y ---
     document.getElementById('lcLockY')?.addEventListener('change', e => {
         STATE.layerControl.gapLockY = e.target.checked;
-        lcUpdateGapControlsUI();
         lcRenderCanvas();
     });
     document.getElementById('lcResetY')?.addEventListener('click', () => lcResetCropY());
-
-    // Estado inicial do slider V (atenuado se gapLockY=true)
-    lcUpdateGapControlsUI();
 
     // --- Layer Control: Alignment buttons ---
     document.getElementById('lcAlignLeft')?.addEventListener('click', () => lcAlignLeft());
