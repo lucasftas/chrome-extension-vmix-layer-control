@@ -103,22 +103,6 @@ function lcSetupDropTarget(el, onDrop) {
 // LAYER MODEL
 // =============================================
 
-function lcMakeOverrides() {
-    return {
-        panX:   { locked: true, value: null },
-        panY:   { locked: true, value: null },
-        zoom:   { locked: true, value: null },
-        cropX1: { locked: true, value: null },
-        cropX2: { locked: true, value: null },
-        cropY1: { locked: true, value: null },
-        cropY2: { locked: true, value: null }
-    };
-}
-
-function lcResetOverrides(layer) {
-    layer._overrides = lcMakeOverrides();
-}
-
 function lcMakeTrim() {
     return { left: 0, right: 0, top: 0, bottom: 0 };
 }
@@ -133,8 +117,7 @@ function lcMakeLayer(index) {
         x: 0, y: 0, w: 1, h: 1,
         hidden: true,
         _posSet: false,
-        _knownState: false,
-        _overrides: lcMakeOverrides()
+        _knownState: false
     };
 }
 
@@ -151,8 +134,7 @@ function lcSnapshotState() {
         index: l.index, inputKey: l.inputKey, inputTitle: l.inputTitle,
         x: l.x, y: l.y, w: l.w, h: l.h,
         trim: { ...l.trim },
-        hidden: l.hidden, _knownState: l._knownState, _checkOff: l._checkOff,
-        _overrides: JSON.parse(JSON.stringify(l._overrides))
+        hidden: l.hidden, _knownState: l._knownState, _checkOff: l._checkOff
     }));
 }
 
@@ -190,7 +172,6 @@ function lcRestoreSnapshot(entry) {
         l.x = s.x; l.y = s.y; l.w = s.w; l.h = s.h;
         l.trim = s.trim ? { ...s.trim } : lcMakeTrim();
         l.hidden = s.hidden; l._knownState = s._knownState; l._checkOff = s._checkOff;
-        l._overrides = s._overrides ? JSON.parse(JSON.stringify(s._overrides)) : lcMakeOverrides();
         l._posSet = true;
     });
     lcRender();
@@ -344,7 +325,7 @@ function lcApplyPreset(presetId) {
     lcPushUndo(`Preset ${presetId}`);
 
     // Re-lock all manual overrides and clear trim when applying presets
-    lc.layers.forEach(l => { lcResetOverrides(l); l.trim = lcMakeTrim(); });
+    lc.layers.forEach(l => { l.trim = lcMakeTrim(); });
 
     let boxes;
     if (presetId === 'auto') {
@@ -723,11 +704,10 @@ function lcUpdateRowVisuals() {
     });
 }
 
-// Full render (canvas + rebuild layer list + properties panel)
+// Full render (canvas + rebuild layer list)
 function lcRender() {
     lcRenderCanvas();
     lcRenderLayerList();
-    lcRenderPropsPanel();
 }
 
 function _lcRenderBoxes(canvas, lc, cW, cH) {
@@ -1049,109 +1029,6 @@ function lcRenderLayerList() {
 }
 
 // =============================================
-// PROPERTIES PANEL (manual vMix-style adjustments)
-// =============================================
-
-const LC_PROPS_FIELDS = [
-    { key: 'zoom',   label: 'Zoom' },
-    { key: 'panX',   label: 'Pan X' },
-    { key: 'panY',   label: 'Pan Y' },
-    { key: 'cropX1', label: 'Crop X1' },
-    { key: 'cropX2', label: 'Crop X2' },
-    { key: 'cropY1', label: 'Crop Y1' },
-    { key: 'cropY2', label: 'Crop Y2' }
-];
-
-function lcRenderPropsPanel() {
-    const panel = document.getElementById('lcPropsPanel');
-    if (!panel) return;
-
-    const lc = STATE.layerControl;
-    const selIdx = lc.selectedLayer;
-    const layer = lc.layers[selIdx];
-    if (!layer) { panel.innerHTML = ''; return; }
-
-    const vm = lcToVMix(layer);
-
-    // Build dropdown
-    let html = '<div class="lc-props-header">';
-    html += '<select id="lcPropsLayerSelect" class="lc-props-select">';
-    for (let i = 0; i < 10; i++) {
-        const l = lc.layers[i];
-        const label = `${i + 1}${l.inputTitle ? ' — ' + l.inputTitle : ''}`;
-        html += `<option value="${i}"${i === selIdx ? ' selected' : ''}>${label}</option>`;
-    }
-    html += '</select></div>';
-
-    // Build field rows
-    html += '<div class="lc-props-fields">';
-    LC_PROPS_FIELDS.forEach(f => {
-        const ov = layer._overrides[f.key];
-        const locked = ov.locked;
-        const displayVal = locked ? (vm[f.key] ?? 0) : (ov.value ?? 0);
-        const roundedVal = typeof displayVal === 'number' ? +displayVal.toFixed(4) : displayVal;
-
-        html += `<div class="lc-props-row">`;
-        html += `<span class="lc-props-label">${f.label}</span>`;
-        html += `<input type="number" class="lc-props-input" data-field="${f.key}" value="${roundedVal}" step="0.001" ${locked ? 'readonly' : ''}>`;
-        html += `<button class="lc-props-lock${locked ? '' : ' unlocked'}" data-field="${f.key}" title="${locked ? 'Destrancar para edição manual' : 'Trancar (usar valor automático)'}">${locked ? '🔒' : '🔓'}</button>`;
-        html += `<button class="lc-props-reset${locked ? ' hidden' : ''}" data-field="${f.key}" title="Resetar para valor automático">↺</button>`;
-        html += `</div>`;
-    });
-    html += '</div>';
-
-    panel.innerHTML = html;
-
-    // Wire events — dropdown
-    document.getElementById('lcPropsLayerSelect')?.addEventListener('change', e => {
-        lc.selectedLayer = parseInt(e.target.value);
-        lcRender();
-    });
-
-    // Wire events — lock toggles
-    panel.querySelectorAll('.lc-props-lock').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const field = btn.dataset.field;
-            const ov = layer._overrides[field];
-            if (ov.locked) {
-                // Unlock: copy computed value as starting point
-                ov.locked = false;
-                ov.value = vm[field] ?? 0;
-            } else {
-                // Re-lock: clear manual value
-                ov.locked = true;
-                ov.value = null;
-                lcSendToVMix(layer);
-            }
-            lcRenderPropsPanel();
-        });
-    });
-
-    // Wire events — number inputs
-    panel.querySelectorAll('.lc-props-input').forEach(input => {
-        input.addEventListener('change', () => {
-            const field = input.dataset.field;
-            const ov = layer._overrides[field];
-            if (ov.locked) return;
-            ov.value = parseFloat(input.value) || 0;
-            lcSendToVMix(layer);
-        });
-    });
-
-    // Wire events — reset buttons
-    panel.querySelectorAll('.lc-props-reset').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const field = btn.dataset.field;
-            const ov = layer._overrides[field];
-            ov.locked = true;
-            ov.value = null;
-            lcSendToVMix(layer);
-            lcRenderPropsPanel();
-        });
-    });
-}
-
-// =============================================
 // MOUSE DRAG (SplitView: Free + Snap modes)
 // =============================================
 
@@ -1248,14 +1125,7 @@ function lcSendToVMix(layer) {
     const N = layer.index + 1;
     const tk = lc.targetInputKey;
     let vm = lcToVMix(layer);
-    // Apply manual overrides (unlocked fields)
-    const ov = layer._overrides;
-    if (ov) {
-        for (const f of ['panX','panY','zoom','cropX1','cropX2','cropY1','cropY2']) {
-            if (!ov[f].locked && ov[f].value !== null) vm[f] = ov[f].value;
-        }
-    }
-    // Apply renderer offset LAST (only for API dispatch, not for model)
+    // Apply renderer offset (only for API dispatch, not for model)
     vm = lcApplyRendererOffset(vm);
     // Fire-and-forget: all 7 commands in parallel (Companion style)
     VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}PanX&Input=${tk}&Value=${vm.panX}`);
