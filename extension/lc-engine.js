@@ -115,6 +115,7 @@ function lcMakeLayer(index) {
         color: LC_COLORS[index % LC_COLORS.length],
         trim: lcMakeTrim(),
         x: 0, y: 0, w: 1, h: 1,
+        slipX: 0,          // Anchor Slip X: desloca o crop em paralelo (-1 a +1), mantém pan/zoom
         hidden: true,
         _posSet: false,
         _knownState: false
@@ -134,6 +135,7 @@ function lcSnapshotState() {
         index: l.index, inputKey: l.inputKey, inputTitle: l.inputTitle,
         x: l.x, y: l.y, w: l.w, h: l.h,
         trim: { ...l.trim },
+        slipX: l.slipX || 0,
         hidden: l.hidden, _knownState: l._knownState, _checkOff: l._checkOff
     }));
 }
@@ -171,6 +173,7 @@ function lcRestoreSnapshot(entry) {
         l.inputKey = s.inputKey; l.inputTitle = s.inputTitle;
         l.x = s.x; l.y = s.y; l.w = s.w; l.h = s.h;
         l.trim = s.trim ? { ...s.trim } : lcMakeTrim();
+        l.slipX = s.slipX || 0;
         l.hidden = s.hidden; l._knownState = s._knownState; l._checkOff = s._checkOff;
         l._posSet = true;
     });
@@ -202,14 +205,16 @@ function lcGetRendererOffsetY() { return STATE.layerControl.rendererOffsetY ?? 0
 // Normalized (0-1) → vMix API values (pure math, no side effects)
 // Pan/Zoom computed from x,y,w,h (geometry stays intact).
 // Trim (l.trim) produces ASYMMETRIC crop — hides specific edges without moving content.
+// slipX desloca o crop em PARALELO (anchor slip) — mantém pan/zoom, move cropX1/cropX2 juntos.
 function lcToVMix(l) {
     const Z = Math.max(l.w, l.h);
     const panX = (l.x + l.w / 2) * 2 - 1;
     const panY = 1 - (l.y + l.h / 2) * 2;
     const baseCropX = Math.max(0, (Z - l.w) / 2 / Z);
     const baseCropY = Math.max(0, (Z - l.h) / 2 / Z);
-    const finalCropX1 = baseCropX + ((l.trim?.left || 0) / Z);
-    const finalCropX2 = (1 - baseCropX) - ((l.trim?.right || 0) / Z);
+    const slipOffsetX = (l.slipX || 0) * baseCropX;
+    const finalCropX1 = baseCropX + ((l.trim?.left || 0) / Z) + slipOffsetX;
+    const finalCropX2 = (1 - baseCropX) - ((l.trim?.right || 0) / Z) + slipOffsetX;
     const finalCropY1 = baseCropY + ((l.trim?.top || 0) / Z);
     const finalCropY2 = (1 - baseCropY) - ((l.trim?.bottom || 0) / Z);
     return {
@@ -240,21 +245,27 @@ function lcEnforceGapLockY(layer) {
 }
 
 // vMix XML values → normalized (0-1)
-// Decomposes vMix crop into symmetric base (geometry) + asymmetric trim overlay.
+// Eixo X: decompõe crop em base (geometria) + slipX (anchor deslizado paralelamente).
+//   - baseCropX = média dos crops (o valor simétrico real da geometria)
+//   - diffCropX = diferença / 2 = offset de slip
+//   - slipX = diffCropX / baseCropX (normalizado em -1..+1)
+//   - trim.left/right são zerados no pull — slip tem prioridade em X.
+// Eixo Y: mantém decomposição original (base simétrica + trim assimétrico). slipY ainda não existe.
 function lcFromVMix(panX, panY, zoom, cropX1, cropY1, cropX2, cropY2) {
     const Z = zoom || 1;
     // Reverse renderer offset if cropX2/cropY2 available
     const cx2 = (cropX2 != null) ? cropX2 + (cropX1 > 0.001 ? lcGetRendererOffsetX() : 0) : 1 - cropX1;
     const cy2 = (cropY2 != null) ? cropY2 + (cropY1 > 0.001 ? lcGetRendererOffsetY() : 0) : 1 - cropY1;
-    // Isolate symmetric base crop (the smaller of left/right, top/bottom)
-    const baseCropX = Math.min(cropX1, 1 - cx2);
+    // X — base + slip (priority over trim)
+    const avgCropX = Math.max(0, (cropX1 + (1 - cx2)) / 2);
+    const diffCropX = (cropX1 - (1 - cx2)) / 2;
+    const baseCropX = avgCropX;
+    const slipXRaw = baseCropX > 0.001 ? diffCropX / baseCropX : 0;
+    const slipX = Math.max(-1, Math.min(1, slipXRaw));
+    // Y — base + trim assimétrico (original)
     const baseCropY = Math.min(cropY1, 1 - cy2);
-    // Base geometry ignoring trim
     const w = Z * (1 - 2 * baseCropX);
     const h = Z * (1 - 2 * baseCropY);
-    // Deduce asymmetric trim extras
-    const trimLeft = (cropX1 - baseCropX) * Z;
-    const trimRight = ((1 - cx2) - baseCropX) * Z;
     const trimTop = (cropY1 - baseCropY) * Z;
     const trimBottom = ((1 - cy2) - baseCropY) * Z;
     const cx = (panX + 1) / 2;
@@ -264,7 +275,8 @@ function lcFromVMix(panX, panY, zoom, cropX1, cropY1, cropX2, cropY2) {
         y: +(cy - h / 2).toFixed(6),
         w: +Math.max(0.01, w).toFixed(6),
         h: +Math.max(0.01, h).toFixed(6),
-        trim: { left: +trimLeft.toFixed(6), right: +trimRight.toFixed(6), top: +trimTop.toFixed(6), bottom: +trimBottom.toFixed(6) }
+        trim: { left: 0, right: 0, top: +trimTop.toFixed(6), bottom: +trimBottom.toFixed(6) },
+        slipX: +slipX.toFixed(6)
     };
 }
 
@@ -324,8 +336,8 @@ function lcApplyPreset(presetId) {
     const lc = STATE.layerControl;
     lcPushUndo(`Preset ${presetId}`);
 
-    // Re-lock all manual overrides and clear trim when applying presets
-    lc.layers.forEach(l => { l.trim = lcMakeTrim(); });
+    // Clear trim e slipX ao aplicar preset (geometria limpa)
+    lc.layers.forEach(l => { l.trim = lcMakeTrim(); l.slipX = 0; });
 
     let boxes;
     if (presetId === 'auto') {
@@ -545,7 +557,7 @@ async function lcFetchInputLayers() {
             const ov = ovMap[i];
             if (ov) {
                 l.inputKey = ov.key; l.inputTitle = ov.title;
-                if (!l._posSet) { l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h; l.trim = ov.trim || lcMakeTrim(); l._posSet = true; }
+                if (!l._posSet) { l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h; l.trim = ov.trim || lcMakeTrim(); l.slipX = ov.slipX || 0; l._posSet = true; }
                 // Respect _checkOff: don't show layers the user/preset turned off
                 if (!l._checkOff) l.hidden = false;
             } else {
@@ -1517,10 +1529,11 @@ async function lcSyncFromVMix() {
                 if (l.hidden && !l._checkOff) {
                     l.hidden = false; changed = true;
                 }
-                // Sync position + trim (skip layer being edited, skip during preset application)
+                // Sync position + trim + slipX (skip layer being edited, skip during preset application)
                 if (i !== lc.selectedLayer && !l.hidden && !lcApplyPreset._busy) {
                     l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h;
                     l.trim = ov.trim || lcMakeTrim();
+                    l.slipX = ov.slipX || 0;
                 }
             } else {
                 // Overlay gone from vMix
