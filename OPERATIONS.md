@@ -1,5 +1,17 @@
 # Operations Log
 
+## 2026-04-19 (v4.0.1)
+- [x] Feedback inicial: aba "Deck" confusa após remoção do grid. Renomeada para "Inputs".
+- [x] Primeira tentativa de layout por aba: DOM swap do inputs-panel → descartada (mal concebida).
+- [x] Reestruturação: `.main-column` agrupa deck + inputs, `.content-area` fica flex row com histórico à direita.
+- [x] Classes `.mode-inputs` / `.mode-layers` controlam flex-grow do deck-panel por aba.
+- [x] Sidebar sempre expandida (210px) era desperdício pra 4 instâncias — implementada colapsável.
+- [x] 3 formas de fechar sidebar: hamburger toggle, ✕ no header, tecla Esc.
+- [x] Hamburger ícone muda dinamicamente (☰ ↔ ✕) conforme estado.
+- [x] Versão "v1" hardcoded na sidebar-header substituída por leitura do manifest.
+- [x] Manifest version finalmente atualizado (3.1.0 → 4.0.1); description atualizada pra v4.
+- [x] Release v4.0.1 publicada com zip de instalação.
+
 ## 2026-04-19 (v4.0.0)
 - [x] Criada branch `stable/v3` congelando v3.1.3 como âncora pro Deck + Multilayer Editor completo
 - [x] Inventário auto-gerado (`feature-audit.html`) catalogando 115 features em 19 grupos; versão bilíngue pt-BR/EN
