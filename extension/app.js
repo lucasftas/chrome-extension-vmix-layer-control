@@ -630,7 +630,7 @@ function renderMainInterface() {
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <span class="sidebar-logo">GUID Panel</span>
-                <span class="sidebar-version">v1</span>
+                <span class="sidebar-version" id="sidebarVersion"></span>
                 <button id="btnSidebarClose" class="btn-sidebar-close" title="Fechar (Esc)">${getIcon('x')}</button>
             </div>
             <div class="sidebar-instances" id="sidebar-instances"></div>
@@ -1723,6 +1723,16 @@ function applySidebarState(open) {
     if (!layout) return;
     layout.classList.toggle('sidebar-open', open);
     layout.classList.toggle('sidebar-closed', !open);
+    const btn = document.getElementById('btnSidebarToggle');
+    if (btn) {
+        btn.innerHTML = open ? getIcon('x') : getIcon('menu');
+        btn.title = open ? 'Fechar (Esc)' : 'Mostrar instâncias';
+    }
+}
+
+function getExtensionVersion() {
+    try { return (typeof chrome !== 'undefined' && chrome.runtime?.getManifest) ? chrome.runtime.getManifest().version : ''; }
+    catch { return ''; }
 }
 
 function toggleSidebar() {
@@ -1868,6 +1878,11 @@ async function init() {
     // Aplica estado da sidebar (default: fechada)
     const sidebarOpen = localStorage.getItem(SIDEBAR_STATE_KEY) === '1';
     applySidebarState(sidebarOpen);
+
+    // Versão dinâmica (lê do manifest)
+    const verEl = document.getElementById('sidebarVersion');
+    const v = getExtensionVersion();
+    if (verEl && v) verEl.textContent = 'v' + v;
 
     // Initialize layer control with 10 empty layers
     if (STATE.layerControl.layers.length === 0) {
