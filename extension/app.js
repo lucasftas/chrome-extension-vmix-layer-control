@@ -40,9 +40,7 @@ const INSTANCE_COLORS = ['#f97316', '#3b82f6', '#22c55e', '#a855f7', '#06b6d4', 
 const STATE = {
     instances: [],
     activeId: null,
-    copyMode: 'GUID',
     filter: 'All',
-    gridSize: 32,
     autoRefreshSecs: 0,
     _refreshTimer: null,
     _searchDebounce: null,
@@ -55,12 +53,9 @@ const STATE = {
         targetInputTitle: '',
         snapEnabled: true,
         layoutMode: 'sim',
-        rendererGapH: 0,
-        rendererGapV: 0,
         rendererOffsetX: 0,       // V9 — sem compensação de renderer (gap=0 absoluto no vMix)
         rendererOffsetY: 0,
         gapLockY: true,
-        gapLiveMode: false,
         _syncTimer: null
     }
 };
@@ -87,8 +82,7 @@ function createInstance(label, host, port, color) {
     const inst = {
         id, label, host, port, color: assignedColor,
         status: 'connecting', inputs: [],
-        vmixInfo: { version: '', edition: '', status: {} },
-        deckLayout: loadInstanceDB(host, port)
+        vmixInfo: { version: '', edition: '', status: {} }
     };
     STATE.instances.push(inst);
     saveInstances();
@@ -333,13 +327,10 @@ function showEditForm(id) {
                 inst.color = selectedColor;
 
                 if (hostChanged) {
-                    const oldLayout = inst.deckLayout;
                     inst.host = newHost;
                     inst.port = newPort;
                     inst.id = newId;
-                    inst.deckLayout = oldLayout;
                     if (STATE.activeId === id) STATE.activeId = newId;
-                    saveInstanceDB(inst);
                 }
 
                 saveInstances();
@@ -377,7 +368,6 @@ function setActiveInstance(id) {
     STATE.activeId = id;
     STATE.filter = 'All';
     renderSidebar();
-    renderDeck();
     generateFilters();
     renderInputs();
     updateHeaderInfo();
@@ -392,32 +382,6 @@ function saveInstances() {
 function loadInstances() {
     try { return JSON.parse(localStorage.getItem('vmix_instances') || '[]'); }
     catch { return []; }
-}
-
-function loadInstanceDB(host, port) {
-    const key = `vmix_deck_${host.replace(/\./g, '_')}_${port}`;
-    const layout = new Array(STATE.gridSize).fill(null);
-    try {
-        const saved = JSON.parse(localStorage.getItem(key) || 'null');
-        if (Array.isArray(saved)) {
-            for (let i = 0; i < Math.min(saved.length, layout.length); i++) layout[i] = saved[i];
-        }
-    } catch { }
-    return layout;
-}
-
-function saveInstanceDB(inst) {
-    localStorage.setItem(`vmix_deck_${inst.host.replace(/\./g, '_')}_${inst.port}`, JSON.stringify(inst.deckLayout));
-}
-
-function resizeAllLayouts(newSize) {
-    STATE.instances.forEach(inst => {
-        const old = inst.deckLayout;
-        const next = new Array(newSize).fill(null);
-        for (let i = 0; i < Math.min(old.length, newSize); i++) next[i] = old[i];
-        inst.deckLayout = next;
-        saveInstanceDB(inst);
-    });
 }
 
 // =============================================
@@ -680,13 +644,6 @@ function renderMainInterface() {
                         <option value="10">10s</option><option value="30">30s</option><option value="60">60s</option>
                     </select>
                 </div>
-                <div class="sidebar-ctrl">
-                    <span class="ctrl-label">GRID</span>
-                    <select id="gridSizeSel" class="ctrl-select">
-                        <option value="16">16</option><option value="32">32</option>
-                        <option value="40">40</option><option value="64">64</option>
-                    </select>
-                </div>
                 <a href="https://lucasftas.github.io/guid-panel-for-broadcast/privacy-policy.html"
                    target="_blank"
                    style="display:block;text-align:center;margin-top:10px;font-size:10px;color:#555;text-decoration:none;letter-spacing:.4px;transition:color .2s;"
@@ -706,14 +663,6 @@ function renderMainInterface() {
                     <div id="vmixStatus" class="status-bar"></div>
                 </div>
                 <div class="topbar-right">
-                    <div class="toggle-wrapper" title="Esq: GUID | Dir: Variável">
-                        <span class="ctrl-label" style="color:#999;">MODO:</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="modeToggle" style="display:none">
-                            <span id="modeLabel" style="color:var(--accent-orange);width:35px;text-align:center;font-weight:bold;">GUID</span>
-                            <div class="toggle-dot-container"><div id="toggleDot" class="toggle-dot"></div></div>
-                        </label>
-                    </div>
                     <button id="btnRefresh" class="btn-tool" title="Recarregar">${getIcon('refresh')}</button>
                     <button id="btnConfig" class="btn-tool" title="Configurações e Storage">${getIcon('settings')} Config</button>
                     <div class="badge clock" id="clock">--:--</div>
@@ -730,10 +679,9 @@ function renderMainInterface() {
                     </div>
                     <div class="deck-content" id="deckContent">
                         <div class="deck-header">
-                            <span style="display:flex;align-items:center;gap:6px;">${getIcon('grid')} <span id="deckTitle">GUID Panel Grid</span></span>
-                            <button id="btnClear" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:10px;text-decoration:underline;">Limpar Tudo</button>
+                            <span style="display:flex;align-items:center;gap:6px;">${getIcon('layers')} <span>Inputs do vMix — clique para copiar o GUID</span></span>
                         </div>
-                        <div class="deck-grid" id="deck-grid"></div>
+                        <div class="deck-inputs-panel" id="deckInputsPanel"></div>
                     </div>
                     <div class="layer-content hidden" id="layerContent">
                         <div class="lc-toolbar">
@@ -758,19 +706,6 @@ function renderMainInterface() {
                             </div>
                         </div>
                         <div class="lc-toolbar lc-toolbar-2">
-                            <div class="lc-gap-control" title="Gap horizontal entre layers (px)">
-                                <label class="lc-gap-label">H</label>
-                                <input type="range" id="lcGapSliderH" min="0" max="80" value="0" class="lc-gap-slider">
-                                <span id="lcGapValueH" class="lc-gap-value">0</span>
-                            </div>
-                            <div class="lc-gap-control" title="Gap vertical entre layers (px)">
-                                <label class="lc-gap-label">V</label>
-                                <input type="range" id="lcGapSliderV" min="0" max="80" value="0" class="lc-gap-slider">
-                                <span id="lcGapValueV" class="lc-gap-value">0</span>
-                            </div>
-                            <button class="lc-live-toggle" id="lcLiveToggle" title="AO VIVO: aplica gap no vMix ao arrastar slider">APPLY</button>
-                            <button class="lc-gap-apply" id="lcGapApply" title="Aplicar gap">Aplicar</button>
-                            <div class="lc-toolbar-sep"></div>
                             <label class="lc-option-check"><input type="checkbox" id="lcLockY" checked> Lock Y</label>
                             <button class="lc-option-btn" id="lcResetY" title="Restaurar Y de todas as layers para altura total">Reset Y</button>
                             <div class="lc-toolbar-sep"></div>
@@ -793,12 +728,6 @@ function renderMainInterface() {
                             <div class="lc-sidebar">
                                 <div class="lc-sidebar-title">LAYERS</div>
                                 <div class="layer-list" id="layerList"></div>
-                                <div class="lc-sidebar-divider"></div>
-                                <div class="lc-props-toggle" id="lcPropsToggle">
-                                    <span class="lc-props-toggle-arrow" id="lcPropsArrow">&#9654;</span>
-                                    <span>PROPERTIES</span>
-                                </div>
-                                <div class="lc-props-panel collapsed" id="lcPropsPanel"></div>
                             </div>
                         </div>
                     </div>
@@ -813,6 +742,15 @@ function renderMainInterface() {
                     </div>
                     <div class="filters-bar" id="filters-container"></div>
                     <div class="inputs-grid-container"><div class="inputs-grid" id="inputs-grid"></div></div>
+                </div>
+
+                <!-- COPY HISTORY (Deck only) -->
+                <div class="copy-history-panel" id="copyHistoryPanel">
+                    <div class="ch-header">
+                        <span style="display:flex;align-items:center;gap:6px;font-weight:bold;font-size:12px;color:#ddd;">${getIcon('list')} Histórico</span>
+                        <button class="ch-clear" id="copyHistoryClear" title="Limpar histórico">${getIcon('trash')}</button>
+                    </div>
+                    <div class="ch-list" id="copyHistoryList"></div>
                 </div>
             </div>
         </div>
@@ -875,262 +813,9 @@ function updateSidebarItem(id) {
 
 function renderAll() {
     renderSidebar();
-    renderDeck();
     generateFilters();
     renderInputs();
     updateHeaderInfo();
-}
-
-function renderDeck() {
-    const grid = document.getElementById('deck-grid');
-    const title = document.getElementById('deckTitle');
-    if (!grid) return;
-    const inst = getActiveInstance();
-    const cols = STATE.gridSize <= 16 ? 4 : 8;
-    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    if (title) title.textContent = `GUID Panel Grid (${STATE.gridSize}${inst ? ' — ' + inst.label : ''})`;
-    if (!inst) { grid.innerHTML = '<div class="empty-state">Selecione uma instância na barra lateral</div>'; return; }
-    grid.innerHTML = '';
-    inst.deckLayout.forEach((data, index) => {
-        const btn = document.createElement('div');
-        const style = data ? getInputStyle(data.rawType, data.isFile) : null;
-        btn.className = `sd-btn${data ? ' active ' + style.bgClass : ' empty'}`;
-        btn.dataset.index = index;
-        btn.draggable = !!data;
-        btn.addEventListener('dragstart', e => {
-            if (!data) { e.preventDefault(); return; }
-            e.dataTransfer.setData('text/plain', JSON.stringify(data));
-            e.dataTransfer.setData('grid-src', String(index));
-            btn.classList.add('dragging');
-        });
-        btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
-        btn.addEventListener('dragover', e => { e.preventDefault(); btn.classList.add('hover-drag'); });
-        btn.addEventListener('dragleave', () => btn.classList.remove('hover-drag'));
-        btn.addEventListener('drop', e => handleDrop(e, index));
-        btn.addEventListener('click', e => { if (!e.target.closest('.btn-clear') && !e.target.closest('.btn-companion') && data) copyData(data, btn); });
-        btn.addEventListener('contextmenu', e => { e.preventDefault(); if (data) copyData(data, btn); });
-        btn.addEventListener('dblclick', e => { if (!e.target.closest('.btn-clear') && !e.target.closest('.btn-companion') && data) renameButton(index, inst); });
-        if (data) {
-            const stateClass = data.state === 'Running' ? 'sd-btn-running' : '';
-            btn.innerHTML = `
-                <div class="btn-clear" data-index="${index}">${getIcon('x')}</div>
-                <div class="btn-companion" data-index="${index}" title="Companion Actions">${getIcon('zap')}</div>
-                <div class="sd-index">${index + 1}</div>
-                <div class="sd-btn-icon ${stateClass}" style="width:18px;height:18px;">${getIcon(style.icon)}</div>
-                <div class="sd-btn-title" title="${data.title}">${data.customLabel || data.shortTitle}</div>
-                <div class="sd-btn-number" style="border-top:2px solid ${inst.color}">${data.number}</div>`;
-            btn.querySelector('.btn-companion').addEventListener('click', e => {
-                e.stopPropagation();
-                showCompanionBuilder(data, inst);
-            });
-        } else {
-            btn.innerHTML = `<span class="sd-index" style="color:#2a2a2a;font-size:10px;">${index + 1}</span>`;
-        }
-        grid.appendChild(btn);
-    });
-}
-
-
-// =============================================
-// COMPANION ACTION BUILDER
-// =============================================
-
-const COMPANION_PRESETS = [
-    {
-        id: 'pgm',
-        label: 'Enviar para PGM',
-        icon: 'layers',
-        color: '#dc2626',
-        bg: '#fee2e2',
-        desc: 'Corta o input direto ao programa (Program)',
-        actions: ['Transition - Send Input to Program'],
-        feedbacks: ['Tally - Program state']
-    },
-    {
-        id: 'mute',
-        label: 'Mudo de Mic / \u00c1udio',
-        icon: 'x',
-        color: '#d97706',
-        bg: '#fef3c7',
-        desc: 'Liga ou desliga o mudo do input de \u00e1udio',
-        actions: ['Audio - Input Mute'],
-        feedbacks: ['Audio - Input mute']
-    },
-    {
-        id: 'bus',
-        label: 'Envia \u00c1udio para Output BUS',
-        icon: 'wifi',
-        color: '#0369a1',
-        bg: '#e0f2fe',
-        desc: 'Roteia o \u00e1udio do input para um bus de sa\u00edda (A, B, C...)',
-        actions: ['Audio - Route Input to Bus'],
-        feedbacks: ['Audio - Input Bus Routing', 'Audio - Bus Volume Meters']
-    },
-    {
-        id: 'layer-set',
-        label: 'Definir Input em uma Layer (Color/Blank)',
-        icon: 'grid',
-        color: '#7c3aed',
-        bg: '#f5f3ff',
-        desc: 'Define este input como uma layer dentro de um Color ou Blank',
-        actions: ['Layer - Set Input as Multiview Layer'],
-        feedbacks: ['Layers - check if X input is on Layer on Y input']
-    },
-    {
-        id: 'layer-toggle',
-        label: 'Liga / Desliga Layer em um Input',
-        icon: 'list',
-        color: '#059669',
-        bg: '#ecfdf5',
-        desc: 'Alterna a visibilidade desta layer dentro de um input destino',
-        actions: ['Layer - Toggle/On/Off Multiview Layer on Input'],
-        feedbacks: ['Layers - check if X input is on Layer on Y input']
-    },
-    {
-        id: 'output',
-        label: 'Envia Input para Output Direto',
-        icon: 'download',
-        color: '#6366f1',
-        bg: '#eef2ff',
-        desc: 'Define este input como fonte de um output espec\u00edfico',
-        actions: ['Output - Set Output Source'],
-        feedbacks: ['General - Output Status']
-    }
-];
-
-function showCompanionBuilder(data, inst) {
-    const inputName = data.customLabel || data.shortTitle || data.title;
-    const inputNum = data.number || '\u2014';
-    const inputType = data.rawType || data.type || 'Input';
-
-    const optionCards = COMPANION_PRESETS.map(p => `
-        <button class="cpn-option-card" data-preset="${p.id}"
-            style="border-color:${p.color}30;background:${p.bg};">
-            <div class="cpn-card-icon" style="background:${p.color};color:#fff;">${getIcon(p.icon)}</div>
-            <div class="cpn-card-info">
-                <div class="cpn-card-label" style="color:${p.color};">${p.label}</div>
-                <div class="cpn-card-desc">${p.desc}</div>
-            </div>
-        </button>`).join('');
-
-    showModal(`
-        <div class="modal-header">
-            <div class="modal-icon" style="background:${inst.color}">${getIcon('zap')}</div>
-            <div>
-                <div class="modal-title">Companion Action Builder</div>
-                <div class="modal-sub">${inputName} <span style="font-family:monospace;opacity:.6">#${inputNum} \u00b7 ${inputType}</span></div>
-            </div>
-        </div>
-        <div class="modal-body" style="padding-bottom:8px;">
-            <div id="cpnStep1">
-                <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">O que este bot\u00e3o deve fazer?</div>
-                <div class="cpn-option-grid">${optionCards}</div>
-            </div>
-            <div id="cpnStep2" style="display:none;">
-                <button class="cpn-back" id="cpnBack">${getIcon('list')} \u2190 Voltar</button>
-                <div id="cpnResult" style="margin-top:10px;"></div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button id="cpnClose" class="modal-btn-cancel">${getIcon('x')} Fechar</button>
-        </div>`,
-        card => {
-            card.querySelector('#cpnClose').addEventListener('click', closeModal);
-            card.querySelector('#cpnBack').addEventListener('click', () => {
-                card.querySelector('#cpnStep1').style.display = '';
-                card.querySelector('#cpnStep2').style.display = 'none';
-            });
-
-            const copyChip = (text, tag) => {
-                const div = document.createElement('div');
-                div.className = 'cpn-chip';
-                div.innerHTML = `
-                    <span class="cpn-chip-tag">${tag}</span>
-                    <span class="cpn-chip-text">${text}</span>
-                    <button class="cpn-chip-copy" title="Copiar">${getIcon('copy')}</button>`;
-                div.querySelector('.cpn-chip-copy').addEventListener('click', () => {
-                    navigator.clipboard.writeText(text).catch(() => {
-                        const ta = document.createElement('textarea');
-                        ta.value = text;
-                        document.body.appendChild(ta);
-                        ta.select();
-                        document.execCommand('copy');
-                        ta.remove();
-                    });
-                    const btn = div.querySelector('.cpn-chip-copy');
-                    btn.innerHTML = getIcon('check');
-                    btn.style.color = '#22c55e';
-                    setTimeout(() => { btn.innerHTML = getIcon('copy'); btn.style.color = ''; }, 2000);
-                    showToast('Copiado!');
-                });
-                return div;
-            };
-
-            card.querySelectorAll('.cpn-option-card').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const preset = COMPANION_PRESETS.find(p => p.id === btn.dataset.preset);
-                    if (!preset) return;
-                    const result = card.querySelector('#cpnResult');
-                    result.innerHTML = `
-                        <div class="cpn-result-header" style="border-left:3px solid ${preset.color};background:${preset.bg};">
-                            <div class="cpn-card-icon" style="background:${preset.color};color:#fff;flex-shrink:0;">${getIcon(preset.icon)}</div>
-                            <div>
-                                <div style="font-weight:700;color:${preset.color};font-size:13px;">${preset.label}</div>
-                                <div style="font-size:11px;color:#666;">Input: <strong>${inputName}</strong> (#${inputNum})</div>
-                            </div>
-                        </div>
-                        <div class="cpn-section-label">⚡ Step 1 — Press <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6b7280;">cole em <em>Actions</em> no Companion</span></div>
-                        <div id="cpnActions"></div>
-                        <div class="cpn-section-label" style="margin-top:14px;">📊 Feedbacks — Status do Botão <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6b7280;">cole em <em>Feedbacks</em> no Companion</span></div>
-                        <div id="cpnFeedbacks"></div>`;
-                    const actEl = result.querySelector('#cpnActions');
-                    preset.actions.forEach(a => actEl.appendChild(copyChip(a, 'PRESS')));
-                    const fbEl = result.querySelector('#cpnFeedbacks');
-                    preset.feedbacks.forEach(f => fbEl.appendChild(copyChip(f, 'STATUS')));
-                    card.querySelector('#cpnStep1').style.display = 'none';
-                    card.querySelector('#cpnStep2').style.display = '';
-                });
-            });
-        });
-}
-
-function renameButton(index, inst) {
-    const data = inst.deckLayout[index];
-    if (!data) return;
-    showModal(`
-        <div class="modal-header">
-            <div class="modal-icon" style="background:#6366f1">${getIcon('edit')}</div>
-            <div>
-                <div class="modal-title">Renomear Botão</div>
-                <div class="modal-sub">${data.shortTitle}</div>
-            </div>
-        </div>
-        <div class="modal-body">
-            <div class="modal-field">
-                <label>Rótulo personalizado</label>
-                <input id="renameInput" class="modal-input" value="${data.customLabel || ''}" placeholder="${data.shortTitle}">
-                <small style="color:#aaa;font-size:11px;">Deixe vazio para usar o nome original do vMix</small>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button id="renameClear" class="modal-btn-delete" style="margin-right:auto;" title="Remove o nome personalizado e fecha">${getIcon('trash')} Limpar Nome</button>
-            <button id="renameCancel" class="modal-btn-cancel">${getIcon('x')} Cancelar</button>
-            <button id="renameSave" class="modal-btn-ok">${getIcon('edit')} Aplicar</button>
-        </div>`,
-        card => {
-            const input = card.querySelector('#renameInput');
-            input.focus(); input.select();
-            card.querySelector('#renameClear').addEventListener('click', () => {
-                data.customLabel = null; saveInstanceDB(inst); closeModal(); renderDeck();
-            });
-            card.querySelector('#renameCancel').addEventListener('click', closeModal);
-            const doRename = () => {
-                data.customLabel = input.value.trim() || null;
-                saveInstanceDB(inst); closeModal(); renderDeck();
-            };
-            card.querySelector('#renameSave').addEventListener('click', doRename);
-            input.addEventListener('keydown', e => { if (e.key === 'Enter') doRename(); });
-        });
 }
 
 function renderInputs() {
@@ -1256,31 +941,9 @@ function setupGlobalEvents() {
         renderAll();
         showToast('Atualizado!');
     });
-    document.getElementById('btnClear')?.addEventListener('click', () => {
-        const inst = getActiveInstance();
-        if (!inst) return;
-        if (confirm('Limpar todo o layout?')) { inst.deckLayout.fill(null); saveInstanceDB(inst); renderDeck(); }
-    });
-    document.getElementById('deck-grid')?.addEventListener('click', e => {
-        const clearBtn = e.target.closest('.btn-clear');
-        if (clearBtn) {
-            const inst = getActiveInstance();
-            if (!inst) return;
-            const idx = parseInt(clearBtn.dataset.index);
-            inst.deckLayout[idx] = null;
-            saveInstanceDB(inst);
-            renderDeck();
-        }
-    });
     document.getElementById('searchInput')?.addEventListener('keyup', () => {
         clearTimeout(STATE._searchDebounce);
         STATE._searchDebounce = setTimeout(renderInputs, 200);
-    });
-    document.getElementById('modeToggle')?.addEventListener('change', e => {
-        STATE.copyMode = e.target.checked ? 'VAR' : 'GUID';
-        document.getElementById('modeLabel').innerText = STATE.copyMode;
-        document.getElementById('modeLabel').style.color = STATE.copyMode === 'GUID' ? 'var(--accent-orange)' : '#60a5fa';
-        document.getElementById('toggleDot').style.left = e.target.checked ? '17px' : '1px';
     });
     document.getElementById('refreshIntervalSel')?.addEventListener('change', e => {
         STATE.autoRefreshSecs = parseInt(e.target.value);
@@ -1288,20 +951,14 @@ function setupGlobalEvents() {
         setupAutoRefresh();
         showToast(STATE.autoRefreshSecs > 0 ? `Auto-refresh: ${STATE.autoRefreshSecs}s` : 'Auto-refresh desligado');
     });
-    document.getElementById('gridSizeSel')?.addEventListener('change', e => {
-        const newSize = parseInt(e.target.value);
-        if (newSize === STATE.gridSize) return;
-        if (confirm(`Mudar grid para ${newSize} botões?`)) {
-            resizeAllLayouts(newSize);
-            STATE.gridSize = newSize;
-            localStorage.setItem('vmix_grid_size', String(newSize));
-            renderDeck();
-        } else { e.target.value = String(STATE.gridSize); }
-    });
 
     // --- Tab switching (Deck / Layer Control) ---
     document.getElementById('tabDeck')?.addEventListener('click', () => switchPanelTab('deck'));
     document.getElementById('tabLayers')?.addEventListener('click', () => switchPanelTab('layers'));
+
+    // --- Copy history: clear button + initial render ---
+    document.getElementById('copyHistoryClear')?.addEventListener('click', clearCopyHistory);
+    renderCopyHistory();
 
     // --- Layer Control preset buttons ---
     document.querySelectorAll('.preset-btn[data-preset]').forEach(btn => {
@@ -1325,56 +982,14 @@ function setupGlobalEvents() {
     // --- Layer Control: Aparar button ---
     document.getElementById('lcTrimBtn')?.addEventListener('click', () => lcTrimLayers());
 
-    // --- Layer Control: Properties panel toggle (collapsible) ---
-    document.getElementById('lcPropsToggle')?.addEventListener('click', () => {
-        const panel = document.getElementById('lcPropsPanel');
-        const arrow = document.getElementById('lcPropsArrow');
-        if (panel) {
-            panel.classList.toggle('collapsed');
-            if (arrow) arrow.textContent = panel.classList.contains('collapsed') ? '\u25B6' : '\u25BC';
-        }
-    });
     document.getElementById('lcSwapBtn')?.addEventListener('click', () => lcSwapInputs());
-
-    // --- Layer Control: Gap sliders H/V + apply + live toggle ---
-    // Debounce live-mode dispatch: evita flood de requests enquanto arrasta o slider.
-    // Inset visual continua atualizando em tempo real via lcRenderCanvas().
-    let _gapLiveTimer = null;
-    const scheduleLiveGap = () => {
-        if (!STATE.layerControl.gapLiveMode) return;
-        clearTimeout(_gapLiveTimer);
-        _gapLiveTimer = setTimeout(() => lcApplyGap(), 150);
-    };
-    document.getElementById('lcGapSliderH')?.addEventListener('input', e => {
-        STATE.layerControl.rendererGapH = parseInt(e.target.value);
-        document.getElementById('lcGapValueH').textContent = e.target.value;
-        lcRenderCanvas();
-        scheduleLiveGap();
-    });
-    document.getElementById('lcGapSliderV')?.addEventListener('input', e => {
-        STATE.layerControl.rendererGapV = parseInt(e.target.value);
-        document.getElementById('lcGapValueV').textContent = e.target.value;
-        lcRenderCanvas();
-        scheduleLiveGap();
-    });
-    document.getElementById('lcGapApply')?.addEventListener('click', () => lcApplyGap());
-    document.getElementById('lcLiveToggle')?.addEventListener('click', () => {
-        STATE.layerControl.gapLiveMode = !STATE.layerControl.gapLiveMode;
-        const btn = document.getElementById('lcLiveToggle');
-        btn.textContent = STATE.layerControl.gapLiveMode ? 'AO VIVO' : 'APPLY';
-        btn.classList.toggle('active', STATE.layerControl.gapLiveMode);
-    });
 
     // --- Layer Control: Lock Crop Y + Reset Y ---
     document.getElementById('lcLockY')?.addEventListener('change', e => {
         STATE.layerControl.gapLockY = e.target.checked;
-        lcUpdateGapControlsUI();
         lcRenderCanvas();
     });
     document.getElementById('lcResetY')?.addEventListener('click', () => lcResetCropY());
-
-    // Estado inicial do slider V (atenuado se gapLockY=true)
-    lcUpdateGapControlsUI();
 
     // --- Layer Control: Alignment buttons ---
     document.getElementById('lcAlignLeft')?.addEventListener('click', () => lcAlignLeft());
@@ -1820,9 +1435,9 @@ function showConfigPanel() {
 
     const instanceIds = instances.map(i => ({ id: i.id, label: i.label, host: i.host, port: i.port, color: i.color }));
 
-    const deckKeys = allKeys.filter(k => k.startsWith('vmix_deck_'));
-    const settingKeys = allKeys.filter(k => k === 'vmix_auto_refresh' || k === 'vmix_grid_size');
-    const otherKeys = allKeys.filter(k => !k.startsWith('vmix_deck_') && k !== 'vmix_instances' && !settingKeys.includes(k));
+    const historyKeys = allKeys.filter(k => k === 'vmix_copy_history');
+    const settingKeys = allKeys.filter(k => k === 'vmix_auto_refresh');
+    const otherKeys = allKeys.filter(k => k !== 'vmix_instances' && !settingKeys.includes(k) && !historyKeys.includes(k));
 
     const bytesFor = key => {
         const v = localStorage.getItem(key);
@@ -1851,29 +1466,27 @@ function showConfigPanel() {
             <span class="cfg-badge">${bytesFor('vmix_instances')}B</span>
         </div>`);
 
-    // Deck layout rows
-    const deckRows = deckKeys.map(key => {
+    // History rows
+    const historyRows = historyKeys.map(key => {
         const raw = localStorage.getItem(key);
-        let filled = 0;
-        try { const arr = JSON.parse(raw); filled = arr.filter(Boolean).length; } catch { }
-        const match = instances.find(i => key === `vmix_deck_${i.host.replace(/\./g, '_')}_${i.port}`);
-        const label = match ? match.label : key.replace('vmix_deck_', '');
+        let count = 0;
+        try { const arr = JSON.parse(raw); count = Array.isArray(arr) ? arr.length : 0; } catch { }
         return `
         <div class="cfg-row" id="cfg-row-${key}">
-            <span class="cfg-dot" style="background:${match?.color || '#6366f1'}"></span>
+            <span class="cfg-dot" style="background:#10b981"></span>
             <div class="cfg-info">
-                <span class="cfg-key">${label}</span>
-                <span class="cfg-val">${filled} botões configurados</span>
+                <span class="cfg-key">Histórico de cópias</span>
+                <span class="cfg-val">${count} entrada${count === 1 ? '' : 's'}</span>
             </div>
             <span class="cfg-badge">${bytesFor(key)}B</span>
-            <button class="cfg-del-btn" data-key="${key}" title="Apagar layout">${getIcon('trash')}</button>
+            <button class="cfg-del-btn" data-key="${key}" title="Limpar histórico">${getIcon('trash')}</button>
         </div>`;
     });
 
     // Settings rows
     const settingRows = settingKeys.map(key => {
         const val = localStorage.getItem(key);
-        const labels = { vmix_auto_refresh: 'Auto-refresh', vmix_grid_size: 'Tamanho do Grid' };
+        const labels = { vmix_auto_refresh: 'Auto-refresh' };
         return `
         <div class="cfg-row" id="cfg-row-${key}">
             <span class="cfg-dot" style="background:#06b6d4"></span>
@@ -1912,7 +1525,7 @@ function showConfigPanel() {
         </div>
         <div class="modal-body cfg-panel-body">
             ${sectionHTML('Instâncias Salvas', '#f97316', 'wifi', instanceRows)}
-            ${sectionHTML('Layouts de Deck', '#6366f1', 'grid', deckRows)}
+            ${historyRows.length > 0 ? sectionHTML('Histórico de Cópias', '#10b981', 'list', historyRows) : ''}
             ${sectionHTML('Preferências', '#06b6d4', 'settings', settingRows)}
             ${otherKeys.length > 0 ? sectionHTML('Outros', '#888', 'box', otherRows) : ''}
         </div>
@@ -1986,33 +1599,97 @@ function getInputStyle(type, isFile = false) {
     return { bgClass: def.c, icon: def.i };
 }
 
-function handleDrop(e, destIndex) {
-    e.preventDefault();
-    const inst = getActiveInstance();
-    if (!inst) return;
+// =============================================
+// COPY HISTORY (v4) — 50 entradas max em vmix_copy_history
+// =============================================
+
+const COPY_HISTORY_MAX = 50;
+const COPY_HISTORY_KEY = 'vmix_copy_history';
+
+function loadCopyHistory() {
     try {
-        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-        const srcIndex = e.dataTransfer.getData('grid-src');
-        if (srcIndex !== '') {
-            const si = parseInt(srcIndex);
-            [inst.deckLayout[si], inst.deckLayout[destIndex]] = [inst.deckLayout[destIndex], inst.deckLayout[si]];
-        } else {
-            inst.deckLayout[destIndex] = { ...data, customLabel: inst.deckLayout[destIndex]?.customLabel || null };
-        }
-        saveInstanceDB(inst);
-        renderDeck();
-    } catch { }
-    document.querySelectorAll('.hover-drag').forEach(el => el.classList.remove('hover-drag'));
+        const raw = localStorage.getItem(COPY_HISTORY_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
 }
 
-function copyData(data, btn, modeOverride = null) {
-    const mode = modeOverride || STATE.copyMode;
-    const text = mode === 'GUID' ? data.key : `$(vmix:input_${data.key}_title)`;
+function saveCopyHistory(arr) {
+    localStorage.setItem(COPY_HISTORY_KEY, JSON.stringify(arr));
+}
+
+function recordCopy(data) {
+    const history = loadCopyHistory();
+    const entry = {
+        ts: Date.now(),
+        number: data.number || '—',
+        title: data.title || data.shortTitle || '',
+        shortTitle: data.shortTitle || '',
+        guid: data.key
+    };
+    history.unshift(entry);
+    if (history.length > COPY_HISTORY_MAX) history.length = COPY_HISTORY_MAX;
+    saveCopyHistory(history);
+    renderCopyHistory();
+}
+
+function recopyFromHistory(guid) {
+    const doFeedback = () => showToast('GUID recopiado!');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(guid).then(doFeedback).catch(() => fallbackCopy(guid, doFeedback));
+    else fallbackCopy(guid, doFeedback);
+}
+
+function clearCopyHistory() {
+    if (!confirm('Limpar todo o histórico de cópias?')) return;
+    saveCopyHistory([]);
+    renderCopyHistory();
+    showToast('Histórico limpo');
+}
+
+function formatHistoryTs(ts) {
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+}
+
+function renderCopyHistory() {
+    const panel = document.getElementById('copyHistoryList');
+    if (!panel) return;
+    const history = loadCopyHistory();
+    if (history.length === 0) {
+        panel.innerHTML = `<div class="ch-empty">Nenhuma cópia ainda. Clique em um input para copiar o GUID.</div>`;
+        return;
+    }
+    panel.innerHTML = history.map(h => `
+        <div class="ch-row">
+            <div class="ch-row-head">
+                <span class="ch-ts">${formatHistoryTs(h.ts)}</span>
+                <span class="ch-num">#${h.number}</span>
+            </div>
+            <div class="ch-title" title="${escapeAttr(h.title)}">${escapeHtml(h.shortTitle || h.title)}</div>
+            <div class="ch-guid" title="${escapeAttr(h.guid)}">${escapeHtml(h.guid)}</div>
+            <button class="ch-recopy" data-guid="${escapeAttr(h.guid)}" title="Copiar novamente">${getIcon('copy')} Copiar</button>
+        </div>`).join('');
+    panel.querySelectorAll('.ch-recopy').forEach(btn => {
+        btn.addEventListener('click', () => recopyFromHistory(btn.dataset.guid));
+    });
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+function copyData(data, btn) {
+    const text = data.key;
     const feedback = () => {
-        showToast(`${mode === 'GUID' ? 'GUID' : 'Variável'} copiada!`);
+        showToast('GUID copiado!');
         btn.style.transition = 'background 0.2s';
-        btn.style.background = mode === 'GUID' ? '#d97706' : '#2563eb';
+        btn.style.background = '#d97706';
         setTimeout(() => btn.style.background = '', 300);
+        recordCopy(data);
     };
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(feedback).catch(() => fallbackCopy(text, feedback));
     else fallbackCopy(text, feedback);
@@ -2036,8 +1713,6 @@ function showToast(msg) {
 }
 
 function restoreSettings() {
-    const gridSel = document.getElementById('gridSizeSel');
-    if (gridSel) gridSel.value = String(STATE.gridSize);
     setupAutoRefresh();
 }
 
@@ -2057,12 +1732,17 @@ function switchPanelTab(tab) {
     deckContent.classList.toggle('hidden', tab !== 'deck');
     layerContent.classList.toggle('hidden', tab !== 'layers');
 
+    // Copy History visível apenas no modo Deck
+    const historyPanel = document.getElementById('copyHistoryPanel');
+    if (historyPanel) historyPanel.classList.toggle('hidden', tab !== 'deck');
+
     // Theme switching
     const root = document.getElementById('app-root');
     if (root) root.className = tab === 'deck' ? 'theme-deck' : 'theme-layers';
 
     // Re-render inputs to update click behavior
     renderInputs();
+    if (tab === 'deck') renderCopyHistory();
 
     if (tab === 'layers') {
         if (!STATE.layerControl.targetInputKey) {
@@ -2084,8 +1764,25 @@ function switchPanelTab(tab) {
 // INIT
 // =============================================
 
+// One-shot migration v3 → v4: remove chaves vmix_deck_* e vmix_grid_size (features removidas na v4)
+function migrateV3ToV4() {
+    const MIGRATION_KEY = 'vmix_v4_migrated';
+    if (localStorage.getItem(MIGRATION_KEY) === '1') return;
+    let removed = 0;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.startsWith('vmix_deck_') || k === 'vmix_grid_size') {
+            localStorage.removeItem(k);
+            removed++;
+        }
+    }
+    localStorage.setItem(MIGRATION_KEY, '1');
+    if (removed > 0) console.log(`[v4 migration] removidas ${removed} chaves do v3 (vmix_deck_*, vmix_grid_size)`);
+}
+
 async function init() {
-    STATE.gridSize = parseInt(localStorage.getItem('vmix_grid_size') || '32');
+    migrateV3ToV4();
     STATE.autoRefreshSecs = parseInt(localStorage.getItem('vmix_auto_refresh') || '0');
 
     // Load saved instances
@@ -2093,8 +1790,7 @@ async function init() {
     for (const s of saved) {
         STATE.instances.push({
             ...s, status: 'connecting', inputs: [],
-            vmixInfo: { version: '', edition: '', status: {} },
-            deckLayout: loadInstanceDB(s.host, s.port)
+            vmixInfo: { version: '', edition: '', status: {} }
         });
     }
 
