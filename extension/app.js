@@ -41,7 +41,6 @@ const STATE = {
     instances: [],
     activeId: null,
     filter: 'All',
-    gridSize: 32,
     autoRefreshSecs: 0,
     _refreshTimer: null,
     _searchDebounce: null,
@@ -83,8 +82,7 @@ function createInstance(label, host, port, color) {
     const inst = {
         id, label, host, port, color: assignedColor,
         status: 'connecting', inputs: [],
-        vmixInfo: { version: '', edition: '', status: {} },
-        deckLayout: loadInstanceDB(host, port)
+        vmixInfo: { version: '', edition: '', status: {} }
     };
     STATE.instances.push(inst);
     saveInstances();
@@ -329,13 +327,10 @@ function showEditForm(id) {
                 inst.color = selectedColor;
 
                 if (hostChanged) {
-                    const oldLayout = inst.deckLayout;
                     inst.host = newHost;
                     inst.port = newPort;
                     inst.id = newId;
-                    inst.deckLayout = oldLayout;
                     if (STATE.activeId === id) STATE.activeId = newId;
-                    saveInstanceDB(inst);
                 }
 
                 saveInstances();
@@ -373,7 +368,6 @@ function setActiveInstance(id) {
     STATE.activeId = id;
     STATE.filter = 'All';
     renderSidebar();
-    renderDeck();
     generateFilters();
     renderInputs();
     updateHeaderInfo();
@@ -388,32 +382,6 @@ function saveInstances() {
 function loadInstances() {
     try { return JSON.parse(localStorage.getItem('vmix_instances') || '[]'); }
     catch { return []; }
-}
-
-function loadInstanceDB(host, port) {
-    const key = `vmix_deck_${host.replace(/\./g, '_')}_${port}`;
-    const layout = new Array(STATE.gridSize).fill(null);
-    try {
-        const saved = JSON.parse(localStorage.getItem(key) || 'null');
-        if (Array.isArray(saved)) {
-            for (let i = 0; i < Math.min(saved.length, layout.length); i++) layout[i] = saved[i];
-        }
-    } catch { }
-    return layout;
-}
-
-function saveInstanceDB(inst) {
-    localStorage.setItem(`vmix_deck_${inst.host.replace(/\./g, '_')}_${inst.port}`, JSON.stringify(inst.deckLayout));
-}
-
-function resizeAllLayouts(newSize) {
-    STATE.instances.forEach(inst => {
-        const old = inst.deckLayout;
-        const next = new Array(newSize).fill(null);
-        for (let i = 0; i < Math.min(old.length, newSize); i++) next[i] = old[i];
-        inst.deckLayout = next;
-        saveInstanceDB(inst);
-    });
 }
 
 // =============================================
@@ -676,13 +644,6 @@ function renderMainInterface() {
                         <option value="10">10s</option><option value="30">30s</option><option value="60">60s</option>
                     </select>
                 </div>
-                <div class="sidebar-ctrl">
-                    <span class="ctrl-label">GRID</span>
-                    <select id="gridSizeSel" class="ctrl-select">
-                        <option value="16">16</option><option value="32">32</option>
-                        <option value="40">40</option><option value="64">64</option>
-                    </select>
-                </div>
                 <a href="https://lucasftas.github.io/guid-panel-for-broadcast/privacy-policy.html"
                    target="_blank"
                    style="display:block;text-align:center;margin-top:10px;font-size:10px;color:#555;text-decoration:none;letter-spacing:.4px;transition:color .2s;"
@@ -718,10 +679,9 @@ function renderMainInterface() {
                     </div>
                     <div class="deck-content" id="deckContent">
                         <div class="deck-header">
-                            <span style="display:flex;align-items:center;gap:6px;">${getIcon('grid')} <span id="deckTitle">GUID Panel Grid</span></span>
-                            <button id="btnClear" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:10px;text-decoration:underline;">Limpar Tudo</button>
+                            <span style="display:flex;align-items:center;gap:6px;">${getIcon('layers')} <span>Inputs do vMix — clique para copiar o GUID</span></span>
                         </div>
-                        <div class="deck-grid" id="deck-grid"></div>
+                        <div class="deck-inputs-panel" id="deckInputsPanel"></div>
                     </div>
                     <div class="layer-content hidden" id="layerContent">
                         <div class="lc-toolbar">
@@ -844,95 +804,9 @@ function updateSidebarItem(id) {
 
 function renderAll() {
     renderSidebar();
-    renderDeck();
     generateFilters();
     renderInputs();
     updateHeaderInfo();
-}
-
-function renderDeck() {
-    const grid = document.getElementById('deck-grid');
-    const title = document.getElementById('deckTitle');
-    if (!grid) return;
-    const inst = getActiveInstance();
-    const cols = STATE.gridSize <= 16 ? 4 : 8;
-    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    if (title) title.textContent = `GUID Panel Grid (${STATE.gridSize}${inst ? ' — ' + inst.label : ''})`;
-    if (!inst) { grid.innerHTML = '<div class="empty-state">Selecione uma instância na barra lateral</div>'; return; }
-    grid.innerHTML = '';
-    inst.deckLayout.forEach((data, index) => {
-        const btn = document.createElement('div');
-        const style = data ? getInputStyle(data.rawType, data.isFile) : null;
-        btn.className = `sd-btn${data ? ' active ' + style.bgClass : ' empty'}`;
-        btn.dataset.index = index;
-        btn.draggable = !!data;
-        btn.addEventListener('dragstart', e => {
-            if (!data) { e.preventDefault(); return; }
-            e.dataTransfer.setData('text/plain', JSON.stringify(data));
-            e.dataTransfer.setData('grid-src', String(index));
-            btn.classList.add('dragging');
-        });
-        btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
-        btn.addEventListener('dragover', e => { e.preventDefault(); btn.classList.add('hover-drag'); });
-        btn.addEventListener('dragleave', () => btn.classList.remove('hover-drag'));
-        btn.addEventListener('drop', e => handleDrop(e, index));
-        btn.addEventListener('click', e => { if (!e.target.closest('.btn-clear') && data) copyData(data, btn); });
-        btn.addEventListener('contextmenu', e => { e.preventDefault(); if (data) copyData(data, btn); });
-        btn.addEventListener('dblclick', e => { if (!e.target.closest('.btn-clear') && data) renameButton(index, inst); });
-        if (data) {
-            const stateClass = data.state === 'Running' ? 'sd-btn-running' : '';
-            btn.innerHTML = `
-                <div class="btn-clear" data-index="${index}">${getIcon('x')}</div>
-                <div class="sd-index">${index + 1}</div>
-                <div class="sd-btn-icon ${stateClass}" style="width:18px;height:18px;">${getIcon(style.icon)}</div>
-                <div class="sd-btn-title" title="${data.title}">${data.customLabel || data.shortTitle}</div>
-                <div class="sd-btn-number" style="border-top:2px solid ${inst.color}">${data.number}</div>`;
-        } else {
-            btn.innerHTML = `<span class="sd-index" style="color:#2a2a2a;font-size:10px;">${index + 1}</span>`;
-        }
-        grid.appendChild(btn);
-    });
-}
-
-
-
-function renameButton(index, inst) {
-    const data = inst.deckLayout[index];
-    if (!data) return;
-    showModal(`
-        <div class="modal-header">
-            <div class="modal-icon" style="background:#6366f1">${getIcon('edit')}</div>
-            <div>
-                <div class="modal-title">Renomear Botão</div>
-                <div class="modal-sub">${data.shortTitle}</div>
-            </div>
-        </div>
-        <div class="modal-body">
-            <div class="modal-field">
-                <label>Rótulo personalizado</label>
-                <input id="renameInput" class="modal-input" value="${data.customLabel || ''}" placeholder="${data.shortTitle}">
-                <small style="color:#aaa;font-size:11px;">Deixe vazio para usar o nome original do vMix</small>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button id="renameClear" class="modal-btn-delete" style="margin-right:auto;" title="Remove o nome personalizado e fecha">${getIcon('trash')} Limpar Nome</button>
-            <button id="renameCancel" class="modal-btn-cancel">${getIcon('x')} Cancelar</button>
-            <button id="renameSave" class="modal-btn-ok">${getIcon('edit')} Aplicar</button>
-        </div>`,
-        card => {
-            const input = card.querySelector('#renameInput');
-            input.focus(); input.select();
-            card.querySelector('#renameClear').addEventListener('click', () => {
-                data.customLabel = null; saveInstanceDB(inst); closeModal(); renderDeck();
-            });
-            card.querySelector('#renameCancel').addEventListener('click', closeModal);
-            const doRename = () => {
-                data.customLabel = input.value.trim() || null;
-                saveInstanceDB(inst); closeModal(); renderDeck();
-            };
-            card.querySelector('#renameSave').addEventListener('click', doRename);
-            input.addEventListener('keydown', e => { if (e.key === 'Enter') doRename(); });
-        });
 }
 
 function renderInputs() {
@@ -1058,22 +932,6 @@ function setupGlobalEvents() {
         renderAll();
         showToast('Atualizado!');
     });
-    document.getElementById('btnClear')?.addEventListener('click', () => {
-        const inst = getActiveInstance();
-        if (!inst) return;
-        if (confirm('Limpar todo o layout?')) { inst.deckLayout.fill(null); saveInstanceDB(inst); renderDeck(); }
-    });
-    document.getElementById('deck-grid')?.addEventListener('click', e => {
-        const clearBtn = e.target.closest('.btn-clear');
-        if (clearBtn) {
-            const inst = getActiveInstance();
-            if (!inst) return;
-            const idx = parseInt(clearBtn.dataset.index);
-            inst.deckLayout[idx] = null;
-            saveInstanceDB(inst);
-            renderDeck();
-        }
-    });
     document.getElementById('searchInput')?.addEventListener('keyup', () => {
         clearTimeout(STATE._searchDebounce);
         STATE._searchDebounce = setTimeout(renderInputs, 200);
@@ -1083,16 +941,6 @@ function setupGlobalEvents() {
         localStorage.setItem('vmix_auto_refresh', String(STATE.autoRefreshSecs));
         setupAutoRefresh();
         showToast(STATE.autoRefreshSecs > 0 ? `Auto-refresh: ${STATE.autoRefreshSecs}s` : 'Auto-refresh desligado');
-    });
-    document.getElementById('gridSizeSel')?.addEventListener('change', e => {
-        const newSize = parseInt(e.target.value);
-        if (newSize === STATE.gridSize) return;
-        if (confirm(`Mudar grid para ${newSize} botões?`)) {
-            resizeAllLayouts(newSize);
-            STATE.gridSize = newSize;
-            localStorage.setItem('vmix_grid_size', String(newSize));
-            renderDeck();
-        } else { e.target.value = String(STATE.gridSize); }
     });
 
     // --- Tab switching (Deck / Layer Control) ---
@@ -1574,9 +1422,9 @@ function showConfigPanel() {
 
     const instanceIds = instances.map(i => ({ id: i.id, label: i.label, host: i.host, port: i.port, color: i.color }));
 
-    const deckKeys = allKeys.filter(k => k.startsWith('vmix_deck_'));
-    const settingKeys = allKeys.filter(k => k === 'vmix_auto_refresh' || k === 'vmix_grid_size');
-    const otherKeys = allKeys.filter(k => !k.startsWith('vmix_deck_') && k !== 'vmix_instances' && !settingKeys.includes(k));
+    const historyKeys = allKeys.filter(k => k === 'vmix_copy_history');
+    const settingKeys = allKeys.filter(k => k === 'vmix_auto_refresh');
+    const otherKeys = allKeys.filter(k => k !== 'vmix_instances' && !settingKeys.includes(k) && !historyKeys.includes(k));
 
     const bytesFor = key => {
         const v = localStorage.getItem(key);
@@ -1605,29 +1453,27 @@ function showConfigPanel() {
             <span class="cfg-badge">${bytesFor('vmix_instances')}B</span>
         </div>`);
 
-    // Deck layout rows
-    const deckRows = deckKeys.map(key => {
+    // History rows
+    const historyRows = historyKeys.map(key => {
         const raw = localStorage.getItem(key);
-        let filled = 0;
-        try { const arr = JSON.parse(raw); filled = arr.filter(Boolean).length; } catch { }
-        const match = instances.find(i => key === `vmix_deck_${i.host.replace(/\./g, '_')}_${i.port}`);
-        const label = match ? match.label : key.replace('vmix_deck_', '');
+        let count = 0;
+        try { const arr = JSON.parse(raw); count = Array.isArray(arr) ? arr.length : 0; } catch { }
         return `
         <div class="cfg-row" id="cfg-row-${key}">
-            <span class="cfg-dot" style="background:${match?.color || '#6366f1'}"></span>
+            <span class="cfg-dot" style="background:#10b981"></span>
             <div class="cfg-info">
-                <span class="cfg-key">${label}</span>
-                <span class="cfg-val">${filled} botões configurados</span>
+                <span class="cfg-key">Histórico de cópias</span>
+                <span class="cfg-val">${count} entrada${count === 1 ? '' : 's'}</span>
             </div>
             <span class="cfg-badge">${bytesFor(key)}B</span>
-            <button class="cfg-del-btn" data-key="${key}" title="Apagar layout">${getIcon('trash')}</button>
+            <button class="cfg-del-btn" data-key="${key}" title="Limpar histórico">${getIcon('trash')}</button>
         </div>`;
     });
 
     // Settings rows
     const settingRows = settingKeys.map(key => {
         const val = localStorage.getItem(key);
-        const labels = { vmix_auto_refresh: 'Auto-refresh', vmix_grid_size: 'Tamanho do Grid' };
+        const labels = { vmix_auto_refresh: 'Auto-refresh' };
         return `
         <div class="cfg-row" id="cfg-row-${key}">
             <span class="cfg-dot" style="background:#06b6d4"></span>
@@ -1666,7 +1512,7 @@ function showConfigPanel() {
         </div>
         <div class="modal-body cfg-panel-body">
             ${sectionHTML('Instâncias Salvas', '#f97316', 'wifi', instanceRows)}
-            ${sectionHTML('Layouts de Deck', '#6366f1', 'grid', deckRows)}
+            ${historyRows.length > 0 ? sectionHTML('Histórico de Cópias', '#10b981', 'list', historyRows) : ''}
             ${sectionHTML('Preferências', '#06b6d4', 'settings', settingRows)}
             ${otherKeys.length > 0 ? sectionHTML('Outros', '#888', 'box', otherRows) : ''}
         </div>
@@ -1740,25 +1586,6 @@ function getInputStyle(type, isFile = false) {
     return { bgClass: def.c, icon: def.i };
 }
 
-function handleDrop(e, destIndex) {
-    e.preventDefault();
-    const inst = getActiveInstance();
-    if (!inst) return;
-    try {
-        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-        const srcIndex = e.dataTransfer.getData('grid-src');
-        if (srcIndex !== '') {
-            const si = parseInt(srcIndex);
-            [inst.deckLayout[si], inst.deckLayout[destIndex]] = [inst.deckLayout[destIndex], inst.deckLayout[si]];
-        } else {
-            inst.deckLayout[destIndex] = { ...data, customLabel: inst.deckLayout[destIndex]?.customLabel || null };
-        }
-        saveInstanceDB(inst);
-        renderDeck();
-    } catch { }
-    document.querySelectorAll('.hover-drag').forEach(el => el.classList.remove('hover-drag'));
-}
-
 function copyData(data, btn) {
     const text = data.key;
     const feedback = () => {
@@ -1789,8 +1616,6 @@ function showToast(msg) {
 }
 
 function restoreSettings() {
-    const gridSel = document.getElementById('gridSizeSel');
-    if (gridSel) gridSel.value = String(STATE.gridSize);
     setupAutoRefresh();
 }
 
@@ -1838,7 +1663,6 @@ function switchPanelTab(tab) {
 // =============================================
 
 async function init() {
-    STATE.gridSize = parseInt(localStorage.getItem('vmix_grid_size') || '32');
     STATE.autoRefreshSecs = parseInt(localStorage.getItem('vmix_auto_refresh') || '0');
 
     // Load saved instances
@@ -1846,8 +1670,7 @@ async function init() {
     for (const s of saved) {
         STATE.instances.push({
             ...s, status: 'connecting', inputs: [],
-            vmixInfo: { version: '', edition: '', status: {} },
-            deckLayout: loadInstanceDB(s.host, s.port)
+            vmixInfo: { version: '', edition: '', status: {} }
         });
     }
 
