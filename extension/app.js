@@ -1662,7 +1662,25 @@ function switchPanelTab(tab) {
 // INIT
 // =============================================
 
+// One-shot migration v3 → v4: remove chaves vmix_deck_* e vmix_grid_size (features removidas na v4)
+function migrateV3ToV4() {
+    const MIGRATION_KEY = 'vmix_v4_migrated';
+    if (localStorage.getItem(MIGRATION_KEY) === '1') return;
+    let removed = 0;
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (k.startsWith('vmix_deck_') || k === 'vmix_grid_size') {
+            localStorage.removeItem(k);
+            removed++;
+        }
+    }
+    localStorage.setItem(MIGRATION_KEY, '1');
+    if (removed > 0) console.log(`[v4 migration] removidas ${removed} chaves do v3 (vmix_deck_*, vmix_grid_size)`);
+}
+
 async function init() {
+    migrateV3ToV4();
     STATE.autoRefreshSecs = parseInt(localStorage.getItem('vmix_auto_refresh') || '0');
 
     // Load saved instances
