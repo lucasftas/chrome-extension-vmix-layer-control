@@ -29,7 +29,9 @@ const ICONS = {
     copy: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
     wifi: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>',
     chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
-    menu: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>'
+    menu: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>',
+    anchor: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="10" rx="1" stroke-dasharray="3 2"/><path d="M4 12h16"/><rect x="7" y="10" width="2" height="4" fill="currentColor"/><rect x="15" y="10" width="2" height="4" fill="currentColor"/></svg>',
+    target: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>'
 };
 
 function getIcon(name) { return ICONS[name] || ICONS.box; }
@@ -680,6 +682,7 @@ function renderMainInterface() {
                     <div class="deck-tabs">
                         <button class="deck-tab active" id="tabDeck">${getIcon('layers')} Inputs</button>
                         <button class="deck-tab" id="tabLayers">${getIcon('grid')} Live MultiLayer Editor</button>
+                        <button class="deck-tab" id="tabAnchor">${getIcon('anchor')} Anchor Slip X</button>
                     </div>
                     <div class="layer-content hidden" id="layerContent">
                         <div class="lc-toolbar">
@@ -726,6 +729,25 @@ function renderMainInterface() {
                             <div class="lc-sidebar">
                                 <div class="lc-sidebar-title">LAYERS</div>
                                 <div class="layer-list" id="layerList"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="layer-content hidden" id="anchorContent">
+                        <div class="lc-toolbar anchor-toolbar">
+                            <button class="lc-target-btn" id="lcAnchorTargetBtn" title="Selecionar input">${getIcon('monitor')} <span id="lcAnchorTargetLabel">Selecionar input...</span></button>
+                            <div class="lc-toolbar-sep"></div>
+                            <span class="lc-presets-label">Eixo</span>
+                            <span class="lc-presets-label anchor-axis">X apenas</span>
+                            <button class="tb-btn" id="lcAnchorCenter" title="Centralizar âncora (duplo-clique na layer também)" style="margin-left:auto;margin-right:auto;">${getIcon('target')} Centralizar</button>
+                            <div class="anchor-info" id="lcAnchorInfo">Selecione uma layer e arraste horizontalmente</div>
+                        </div>
+                        <div class="lc-main">
+                            <div class="layer-canvas-wrapper anchor-canvas-wrapper">
+                                <div class="layer-canvas anchor-canvas" id="anchorCanvas"></div>
+                            </div>
+                            <div class="lc-sidebar">
+                                <div class="lc-sidebar-title">LAYERS</div>
+                                <div class="layer-list" id="anchorLayerList"></div>
                             </div>
                         </div>
                     </div>
