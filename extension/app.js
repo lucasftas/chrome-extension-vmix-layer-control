@@ -1827,9 +1827,12 @@ function switchPanelTab(tab) {
     const historyPanel = document.getElementById('copyHistoryPanel');
     if (historyPanel) historyPanel.classList.toggle('hidden', tab !== 'deck');
 
-    // Theme switching (deck=roxo; layers e anchor usam tema laranja)
+    // Theme switching (deck=roxo, layers=laranja, anchor=verde)
     const root = document.getElementById('app-root');
-    if (root) root.className = tab === 'deck' ? 'theme-deck' : 'theme-layers';
+    if (root) {
+        const theme = tab === 'deck' ? 'theme-deck' : (tab === 'anchor' ? 'theme-anchor' : 'theme-layers');
+        root.className = theme;
+    }
 
     // Re-render inputs to update click behavior
     renderInputs();
