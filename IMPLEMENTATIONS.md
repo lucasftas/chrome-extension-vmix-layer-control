@@ -1,5 +1,43 @@
 # Implementations
 
+## v4.0.1 — 2026-04-19
+
+### UX polish pós-v4.0.0
+
+Três iterações de ajuste feitas logo após a v4.0.0 em resposta a feedback visual:
+
+#### 1. Layout por aba (reestruturação completa)
+
+A primeira tentativa de layout (flex row com DOM swap do inputs-panel) estava mal concebida. Substituída por:
+
+```
+content-area (flex row)
+ ├─ main-column (flex column, flex 1)
+ │   ├─ deck-panel  (tabs + layer-content; flex varia por aba)
+ │   └─ inputs-panel (sempre no rodapé)
+ └─ copy-history-panel (direita, só em mode-inputs)
+```
+
+Controle via classe `.mode-inputs` / `.mode-layers` no `.content-area`:
+- mode-inputs → deck-panel `flex: 0 0 auto` (só as tabs), inputs-panel preenche o resto
+- mode-layers → deck-panel `flex: 3`, inputs-panel `flex: 2` (como era originalmente)
+
+`.deck-content` removido (era placeholder vazio); `.layer-content` herdou seus estilos.
+
+#### 2. Sidebar colapsável
+
+Uso típico do usuário é até 4 instâncias vMix — sidebar fixa de 210px gastava espaço. Agora:
+- Default fechada
+- Botão hamburger no topbar esquerdo (`#btnSidebarToggle`)
+- `applySidebarState(open)` alterna classes + ícone (☰ ↔ ✕) + tooltip
+- Preferência persistida (`vmix_sidebar_open`)
+- 3 formas de fechar: hamburger, ✕ no header da sidebar, tecla Esc
+- Esc respeita modais (não fecha sidebar se um modal estiver aberto)
+
+#### 3. Versão dinâmica
+
+Sidebar tinha `<span>v1</span>` hardcoded desde a v1. Agora `getExtensionVersion()` lê de `chrome.runtime.getManifest().version`. Manifest version finalmente sincronizada (3.1.0 → 4.0.1).
+
 ## v4.0.0 — 2026-04-19
 
 ### Redesign do Deck: de Grid para Lista + Histórico

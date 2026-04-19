@@ -3,6 +3,29 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.0.1] — 2026-04-19
+
+### Added
+- Sidebar colapsável via botão hamburger (☰) no topbar esquerdo. Default: fechada.
+- Hamburger alterna entre ☰ e ✕ conforme estado da sidebar.
+- Botão ✕ no header da sidebar + tecla **Esc** para fechar (respeita modais abertos).
+- Preferência de sidebar persistida em `vmix_sidebar_open`.
+- Classe `.sidebar-open` / `.sidebar-closed` no `.app-layout` controla visibilidade.
+- Função `getExtensionVersion()` lê de `chrome.runtime.getManifest().version`.
+
+### Changed
+- **Layout por aba reestruturado**: `content-area` agora tem `.main-column` (flex column) + `.copy-history-panel` à direita.
+  - Modo Inputs: `.deck-panel` colapsa (`flex: 0 0 auto`), `.inputs-panel` preenche.
+  - Modo Multilayer: `.deck-panel` ocupa o topo (`flex: 3`), `.inputs-panel` no rodapé (`flex: 2`).
+- `switchPanelTab` agora usa classes `.mode-inputs`/`.mode-layers` no `.content-area` em vez de DOM swap.
+- Aba "Deck" renomeada para **"Inputs"** (ícone `layers`); Multilayer ganhou ícone `grid`.
+- Versão exibida na sidebar-header agora é dinâmica (era "v1" hardcoded).
+- `manifest.json` version bump: 3.1.0 → 4.0.1. Description atualizada.
+
+### Removed
+- `.deck-content` (era placeholder vazio); `.layer-content` herdou seus estilos.
+- DOM swap do `.inputs-panel` (substituído por classes `.mode-*`).
+
 ## [4.0.0] — 2026-04-19
 
 ### Added
