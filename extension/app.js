@@ -670,15 +670,13 @@ function renderMainInterface() {
             </header>
 
             <!-- CONTENT -->
-            <div class="content-area">
+            <div class="content-area mode-inputs">
+              <div class="main-column">
                 <!-- DECK + LAYER CONTROL (tabbed) -->
                 <div class="deck-panel">
                     <div class="deck-tabs">
                         <button class="deck-tab active" id="tabDeck">${getIcon('layers')} Inputs</button>
                         <button class="deck-tab" id="tabLayers">${getIcon('grid')} Live MultiLayer Editor</button>
-                    </div>
-                    <div class="deck-content" id="deckContent">
-                        <!-- Inputs panel é movido pra dentro aqui via switchPanelTab quando aba = inputs -->
                     </div>
                     <div class="layer-content hidden" id="layerContent">
                         <div class="lc-toolbar">
@@ -730,7 +728,7 @@ function renderMainInterface() {
                     </div>
                 </div>
 
-                <!-- INPUTS -->
+                <!-- INPUTS (embaixo sempre; altura depende da aba via CSS .mode-*) -->
                 <div class="inputs-panel">
                     <div class="inputs-info-bar" id="inputsInfoBar"><span>Selecione uma instância</span></div>
                     <div class="inputs-toolbar">
@@ -740,8 +738,9 @@ function renderMainInterface() {
                     <div class="filters-bar" id="filters-container"></div>
                     <div class="inputs-grid-container"><div class="inputs-grid" id="inputs-grid"></div></div>
                 </div>
+              </div><!-- /.main-column -->
 
-                <!-- COPY HISTORY (Deck only) -->
+                <!-- COPY HISTORY (Inputs tab only) -->
                 <div class="copy-history-panel" id="copyHistoryPanel">
                     <div class="ch-header">
                         <span style="display:flex;align-items:center;gap:6px;font-weight:bold;font-size:12px;color:#ddd;">${getIcon('list')} Histórico</span>
@@ -1721,34 +1720,23 @@ function switchPanelTab(tab) {
     STATE.activeTab = tab;
     const tabDeck = document.getElementById('tabDeck');
     const tabLayers = document.getElementById('tabLayers');
-    const deckContent = document.getElementById('deckContent');
     const layerContent = document.getElementById('layerContent');
     if (!tabDeck) return;
     tabDeck.classList.toggle('active', tab === 'deck');
     tabLayers.classList.toggle('active', tab === 'layers');
-    deckContent.classList.toggle('hidden', tab !== 'deck');
-    layerContent.classList.toggle('hidden', tab !== 'layers');
+    layerContent?.classList.toggle('hidden', tab !== 'layers');
 
-    // DOM swap do inputs-panel dependendo da aba ativa:
-    //   aba 'deck' (Inputs): inputs vai pra DENTRO do #deckContent (ocupa o espaço abaixo das abas)
-    //   aba 'layers' (Multilayer): inputs volta pra content-area como coluna à direita
-    const inputsPanel = document.querySelector('.inputs-panel');
+    // Classe no content-area controla o layout:
+    //   .mode-inputs: deck-panel colapsa só às tabs, inputs-panel preenche abaixo, histórico à direita
+    //   .mode-layers: deck-panel ocupa o topo com layer-content, inputs-panel embaixo, sem histórico
     const contentArea = document.querySelector('.content-area');
-    const historyPanel = document.getElementById('copyHistoryPanel');
-    if (inputsPanel && contentArea && deckContent) {
-        if (tab === 'deck') {
-            inputsPanel.classList.add('in-deck');
-            if (inputsPanel.parentElement !== deckContent) deckContent.appendChild(inputsPanel);
-        } else {
-            inputsPanel.classList.remove('in-deck');
-            if (inputsPanel.parentElement !== contentArea) {
-                if (historyPanel) contentArea.insertBefore(inputsPanel, historyPanel);
-                else contentArea.appendChild(inputsPanel);
-            }
-        }
+    if (contentArea) {
+        contentArea.classList.toggle('mode-inputs', tab === 'deck');
+        contentArea.classList.toggle('mode-layers', tab === 'layers');
     }
 
-    // Copy History visível apenas no modo Inputs (deck)
+    // Copy History visível apenas no modo Inputs
+    const historyPanel = document.getElementById('copyHistoryPanel');
     if (historyPanel) historyPanel.classList.toggle('hidden', tab !== 'deck');
 
     // Theme switching
