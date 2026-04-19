@@ -907,22 +907,17 @@ function renderDeck() {
         btn.addEventListener('dragover', e => { e.preventDefault(); btn.classList.add('hover-drag'); });
         btn.addEventListener('dragleave', () => btn.classList.remove('hover-drag'));
         btn.addEventListener('drop', e => handleDrop(e, index));
-        btn.addEventListener('click', e => { if (!e.target.closest('.btn-clear') && !e.target.closest('.btn-companion') && data) copyData(data, btn); });
+        btn.addEventListener('click', e => { if (!e.target.closest('.btn-clear') && data) copyData(data, btn); });
         btn.addEventListener('contextmenu', e => { e.preventDefault(); if (data) copyData(data, btn); });
-        btn.addEventListener('dblclick', e => { if (!e.target.closest('.btn-clear') && !e.target.closest('.btn-companion') && data) renameButton(index, inst); });
+        btn.addEventListener('dblclick', e => { if (!e.target.closest('.btn-clear') && data) renameButton(index, inst); });
         if (data) {
             const stateClass = data.state === 'Running' ? 'sd-btn-running' : '';
             btn.innerHTML = `
                 <div class="btn-clear" data-index="${index}">${getIcon('x')}</div>
-                <div class="btn-companion" data-index="${index}" title="Companion Actions">${getIcon('zap')}</div>
                 <div class="sd-index">${index + 1}</div>
                 <div class="sd-btn-icon ${stateClass}" style="width:18px;height:18px;">${getIcon(style.icon)}</div>
                 <div class="sd-btn-title" title="${data.title}">${data.customLabel || data.shortTitle}</div>
                 <div class="sd-btn-number" style="border-top:2px solid ${inst.color}">${data.number}</div>`;
-            btn.querySelector('.btn-companion').addEventListener('click', e => {
-                e.stopPropagation();
-                showCompanionBuilder(data, inst);
-            });
         } else {
             btn.innerHTML = `<span class="sd-index" style="color:#2a2a2a;font-size:10px;">${index + 1}</span>`;
         }
@@ -931,168 +926,6 @@ function renderDeck() {
 }
 
 
-// =============================================
-// COMPANION ACTION BUILDER
-// =============================================
-
-const COMPANION_PRESETS = [
-    {
-        id: 'pgm',
-        label: 'Enviar para PGM',
-        icon: 'layers',
-        color: '#dc2626',
-        bg: '#fee2e2',
-        desc: 'Corta o input direto ao programa (Program)',
-        actions: ['Transition - Send Input to Program'],
-        feedbacks: ['Tally - Program state']
-    },
-    {
-        id: 'mute',
-        label: 'Mudo de Mic / \u00c1udio',
-        icon: 'x',
-        color: '#d97706',
-        bg: '#fef3c7',
-        desc: 'Liga ou desliga o mudo do input de \u00e1udio',
-        actions: ['Audio - Input Mute'],
-        feedbacks: ['Audio - Input mute']
-    },
-    {
-        id: 'bus',
-        label: 'Envia \u00c1udio para Output BUS',
-        icon: 'wifi',
-        color: '#0369a1',
-        bg: '#e0f2fe',
-        desc: 'Roteia o \u00e1udio do input para um bus de sa\u00edda (A, B, C...)',
-        actions: ['Audio - Route Input to Bus'],
-        feedbacks: ['Audio - Input Bus Routing', 'Audio - Bus Volume Meters']
-    },
-    {
-        id: 'layer-set',
-        label: 'Definir Input em uma Layer (Color/Blank)',
-        icon: 'grid',
-        color: '#7c3aed',
-        bg: '#f5f3ff',
-        desc: 'Define este input como uma layer dentro de um Color ou Blank',
-        actions: ['Layer - Set Input as Multiview Layer'],
-        feedbacks: ['Layers - check if X input is on Layer on Y input']
-    },
-    {
-        id: 'layer-toggle',
-        label: 'Liga / Desliga Layer em um Input',
-        icon: 'list',
-        color: '#059669',
-        bg: '#ecfdf5',
-        desc: 'Alterna a visibilidade desta layer dentro de um input destino',
-        actions: ['Layer - Toggle/On/Off Multiview Layer on Input'],
-        feedbacks: ['Layers - check if X input is on Layer on Y input']
-    },
-    {
-        id: 'output',
-        label: 'Envia Input para Output Direto',
-        icon: 'download',
-        color: '#6366f1',
-        bg: '#eef2ff',
-        desc: 'Define este input como fonte de um output espec\u00edfico',
-        actions: ['Output - Set Output Source'],
-        feedbacks: ['General - Output Status']
-    }
-];
-
-function showCompanionBuilder(data, inst) {
-    const inputName = data.customLabel || data.shortTitle || data.title;
-    const inputNum = data.number || '\u2014';
-    const inputType = data.rawType || data.type || 'Input';
-
-    const optionCards = COMPANION_PRESETS.map(p => `
-        <button class="cpn-option-card" data-preset="${p.id}"
-            style="border-color:${p.color}30;background:${p.bg};">
-            <div class="cpn-card-icon" style="background:${p.color};color:#fff;">${getIcon(p.icon)}</div>
-            <div class="cpn-card-info">
-                <div class="cpn-card-label" style="color:${p.color};">${p.label}</div>
-                <div class="cpn-card-desc">${p.desc}</div>
-            </div>
-        </button>`).join('');
-
-    showModal(`
-        <div class="modal-header">
-            <div class="modal-icon" style="background:${inst.color}">${getIcon('zap')}</div>
-            <div>
-                <div class="modal-title">Companion Action Builder</div>
-                <div class="modal-sub">${inputName} <span style="font-family:monospace;opacity:.6">#${inputNum} \u00b7 ${inputType}</span></div>
-            </div>
-        </div>
-        <div class="modal-body" style="padding-bottom:8px;">
-            <div id="cpnStep1">
-                <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">O que este bot\u00e3o deve fazer?</div>
-                <div class="cpn-option-grid">${optionCards}</div>
-            </div>
-            <div id="cpnStep2" style="display:none;">
-                <button class="cpn-back" id="cpnBack">${getIcon('list')} \u2190 Voltar</button>
-                <div id="cpnResult" style="margin-top:10px;"></div>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button id="cpnClose" class="modal-btn-cancel">${getIcon('x')} Fechar</button>
-        </div>`,
-        card => {
-            card.querySelector('#cpnClose').addEventListener('click', closeModal);
-            card.querySelector('#cpnBack').addEventListener('click', () => {
-                card.querySelector('#cpnStep1').style.display = '';
-                card.querySelector('#cpnStep2').style.display = 'none';
-            });
-
-            const copyChip = (text, tag) => {
-                const div = document.createElement('div');
-                div.className = 'cpn-chip';
-                div.innerHTML = `
-                    <span class="cpn-chip-tag">${tag}</span>
-                    <span class="cpn-chip-text">${text}</span>
-                    <button class="cpn-chip-copy" title="Copiar">${getIcon('copy')}</button>`;
-                div.querySelector('.cpn-chip-copy').addEventListener('click', () => {
-                    navigator.clipboard.writeText(text).catch(() => {
-                        const ta = document.createElement('textarea');
-                        ta.value = text;
-                        document.body.appendChild(ta);
-                        ta.select();
-                        document.execCommand('copy');
-                        ta.remove();
-                    });
-                    const btn = div.querySelector('.cpn-chip-copy');
-                    btn.innerHTML = getIcon('check');
-                    btn.style.color = '#22c55e';
-                    setTimeout(() => { btn.innerHTML = getIcon('copy'); btn.style.color = ''; }, 2000);
-                    showToast('Copiado!');
-                });
-                return div;
-            };
-
-            card.querySelectorAll('.cpn-option-card').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const preset = COMPANION_PRESETS.find(p => p.id === btn.dataset.preset);
-                    if (!preset) return;
-                    const result = card.querySelector('#cpnResult');
-                    result.innerHTML = `
-                        <div class="cpn-result-header" style="border-left:3px solid ${preset.color};background:${preset.bg};">
-                            <div class="cpn-card-icon" style="background:${preset.color};color:#fff;flex-shrink:0;">${getIcon(preset.icon)}</div>
-                            <div>
-                                <div style="font-weight:700;color:${preset.color};font-size:13px;">${preset.label}</div>
-                                <div style="font-size:11px;color:#666;">Input: <strong>${inputName}</strong> (#${inputNum})</div>
-                            </div>
-                        </div>
-                        <div class="cpn-section-label">⚡ Step 1 — Press <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6b7280;">cole em <em>Actions</em> no Companion</span></div>
-                        <div id="cpnActions"></div>
-                        <div class="cpn-section-label" style="margin-top:14px;">📊 Feedbacks — Status do Botão <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6b7280;">cole em <em>Feedbacks</em> no Companion</span></div>
-                        <div id="cpnFeedbacks"></div>`;
-                    const actEl = result.querySelector('#cpnActions');
-                    preset.actions.forEach(a => actEl.appendChild(copyChip(a, 'PRESS')));
-                    const fbEl = result.querySelector('#cpnFeedbacks');
-                    preset.feedbacks.forEach(f => fbEl.appendChild(copyChip(f, 'STATUS')));
-                    card.querySelector('#cpnStep1').style.display = 'none';
-                    card.querySelector('#cpnStep2').style.display = '';
-                });
-            });
-        });
-}
 
 function renameButton(index, inst) {
     const data = inst.deckLayout[index];
