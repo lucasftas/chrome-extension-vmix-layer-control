@@ -40,7 +40,6 @@ const INSTANCE_COLORS = ['#f97316', '#3b82f6', '#22c55e', '#a855f7', '#06b6d4', 
 const STATE = {
     instances: [],
     activeId: null,
-    copyMode: 'GUID',
     filter: 'All',
     gridSize: 32,
     autoRefreshSecs: 0,
@@ -703,14 +702,6 @@ function renderMainInterface() {
                     <div id="vmixStatus" class="status-bar"></div>
                 </div>
                 <div class="topbar-right">
-                    <div class="toggle-wrapper" title="Esq: GUID | Dir: Variável">
-                        <span class="ctrl-label" style="color:#999;">MODO:</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="modeToggle" style="display:none">
-                            <span id="modeLabel" style="color:var(--accent-orange);width:35px;text-align:center;font-weight:bold;">GUID</span>
-                            <div class="toggle-dot-container"><div id="toggleDot" class="toggle-dot"></div></div>
-                        </label>
-                    </div>
                     <button id="btnRefresh" class="btn-tool" title="Recarregar">${getIcon('refresh')}</button>
                     <button id="btnConfig" class="btn-tool" title="Configurações e Storage">${getIcon('settings')} Config</button>
                     <div class="badge clock" id="clock">--:--</div>
@@ -1086,12 +1077,6 @@ function setupGlobalEvents() {
     document.getElementById('searchInput')?.addEventListener('keyup', () => {
         clearTimeout(STATE._searchDebounce);
         STATE._searchDebounce = setTimeout(renderInputs, 200);
-    });
-    document.getElementById('modeToggle')?.addEventListener('change', e => {
-        STATE.copyMode = e.target.checked ? 'VAR' : 'GUID';
-        document.getElementById('modeLabel').innerText = STATE.copyMode;
-        document.getElementById('modeLabel').style.color = STATE.copyMode === 'GUID' ? 'var(--accent-orange)' : '#60a5fa';
-        document.getElementById('toggleDot').style.left = e.target.checked ? '17px' : '1px';
     });
     document.getElementById('refreshIntervalSel')?.addEventListener('change', e => {
         STATE.autoRefreshSecs = parseInt(e.target.value);
@@ -1774,13 +1759,12 @@ function handleDrop(e, destIndex) {
     document.querySelectorAll('.hover-drag').forEach(el => el.classList.remove('hover-drag'));
 }
 
-function copyData(data, btn, modeOverride = null) {
-    const mode = modeOverride || STATE.copyMode;
-    const text = mode === 'GUID' ? data.key : `$(vmix:input_${data.key}_title)`;
+function copyData(data, btn) {
+    const text = data.key;
     const feedback = () => {
-        showToast(`${mode === 'GUID' ? 'GUID' : 'Variável'} copiada!`);
+        showToast('GUID copiado!');
         btn.style.transition = 'background 0.2s';
-        btn.style.background = mode === 'GUID' ? '#d97706' : '#2563eb';
+        btn.style.background = '#d97706';
         setTimeout(() => btn.style.background = '', 300);
     };
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(feedback).catch(() => fallbackCopy(text, feedback));
