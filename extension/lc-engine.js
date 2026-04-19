@@ -499,10 +499,15 @@ function lcShowInputSelector() {
             row.addEventListener('click', async () => {
                 STATE.layerControl.targetInputKey = row.dataset.key;
                 STATE.layerControl.targetInputTitle = row.dataset.title;
-                document.getElementById('lcTargetLabel').textContent = `#${row.dataset.number} ${row.dataset.title}`;
+                const label = `#${row.dataset.number} ${row.dataset.title}`;
+                const mlLbl = document.getElementById('lcTargetLabel');
+                const anLbl = document.getElementById('lcAnchorTargetLabel');
+                if (mlLbl) mlLbl.textContent = label;
+                if (anLbl) anLbl.textContent = label;
                 closeModal();
                 await lcFetchInputLayers();
-                lcRender();
+                if (STATE.activeTab === 'anchor') lcAnchorRender();
+                else lcRender();
                 lcInitHistory();
                 lcStartSync();
             });
