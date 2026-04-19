@@ -28,7 +28,8 @@ const ICONS = {
     edit: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
     copy: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
     wifi: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>',
-    chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+    chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+    menu: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>'
 };
 
 function getIcon(name) { return ICONS[name] || ICONS.box; }
@@ -659,6 +660,7 @@ function renderMainInterface() {
             <!-- TOPBAR -->
             <header class="topbar">
                 <div class="topbar-left">
+                    <button id="btnSidebarToggle" class="btn-tool btn-hamburger" title="Mostrar/esconder instâncias">${getIcon('menu')}</button>
                     <div id="topbarInfo" class="topbar-info"></div>
                     <div id="vmixStatus" class="status-bar"></div>
                 </div>
@@ -930,6 +932,7 @@ function updateHeaderInfo() {
 function setupGlobalEvents() {
     document.getElementById('btnSidebarAdd')?.addEventListener('click', showSidebarAddForm);
     document.getElementById('btnConfig')?.addEventListener('click', showConfigPanel);
+    document.getElementById('btnSidebarToggle')?.addEventListener('click', toggleSidebar);
     document.getElementById('btnRefresh')?.addEventListener('click', async () => {
         const inst = getActiveInstance();
         if (!inst) { showToast('Selecione uma instância'); return; }
@@ -1701,6 +1704,27 @@ function fallbackCopy(text, callback) {
     } catch { showToast('Erro ao copiar'); }
 }
 
+// =============================================
+// SIDEBAR TOGGLE (collapsible)
+// =============================================
+
+const SIDEBAR_STATE_KEY = 'vmix_sidebar_open';
+
+function applySidebarState(open) {
+    const layout = document.querySelector('.app-layout');
+    if (!layout) return;
+    layout.classList.toggle('sidebar-open', open);
+    layout.classList.toggle('sidebar-closed', !open);
+}
+
+function toggleSidebar() {
+    const layout = document.querySelector('.app-layout');
+    if (!layout) return;
+    const open = !layout.classList.contains('sidebar-open');
+    applySidebarState(open);
+    localStorage.setItem(SIDEBAR_STATE_KEY, open ? '1' : '0');
+}
+
 function showToast(msg) {
     const t = document.getElementById('toast');
     if (!t) return;
@@ -1827,6 +1851,10 @@ async function init() {
 
     // Aplica o posicionamento correto de inputs-panel + histórico pra aba ativa
     switchPanelTab(STATE.activeTab || 'deck');
+
+    // Aplica estado da sidebar (default: fechada)
+    const sidebarOpen = localStorage.getItem(SIDEBAR_STATE_KEY) === '1';
+    applySidebarState(sidebarOpen);
 
     // Initialize layer control with 10 empty layers
     if (STATE.layerControl.layers.length === 0) {
