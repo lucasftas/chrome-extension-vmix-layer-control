@@ -1113,7 +1113,7 @@ document.addEventListener('mousemove', e => {
         }
         l.x = +lcClamp(nx, 0, Math.max(0, 1 - l.w)).toFixed(6);
         l.y = +lcClamp(ny, 0, Math.max(0, 1 - l.h)).toFixed(6);
-        lcRender(); lcThrottleSend(l);
+        lcRender();
         return;
     }
 
@@ -1146,7 +1146,6 @@ document.addEventListener('mousemove', e => {
             sliderEl.dataset.px = px;
         }
         lcRender();
-        lc.layers.forEach(l => { if (!l.hidden && l.inputKey) lcThrottleSend(l); });
         return;
     }
 });

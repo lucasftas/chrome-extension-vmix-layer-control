@@ -1,5 +1,15 @@
 # Implementations
 
+## v4.1.7 — 2026-04-19
+
+### UX: Multilayer dispatch no release (consistência com Anchor)
+
+Até a v4.1.6, o drag no Multilayer enviava comandos ao vMix em tempo real via `lcThrottleSend` (33ms entre envios, ~30Hz). Funcionava mas inconsistente com o Anchor Slip X, que desde o início só envia no `mouseup`.
+
+Decisão: unificar no padrão do Anchor. Removidas as chamadas `lcThrottleSend` nos dois ramos do mousemove (`type === 'free'` e `type === 'snap'`) — resta apenas `lcRender()` local. O mouseup já despachava via `lcSendToVMix` (para `free`, só a layer movida; para `snap`, todas as afetadas), então nenhum envio foi perdido — só deslocado no tempo.
+
+Trade-off: perde preview ao vivo durante drag, ganha tráfego HTTP reduzido e animação local mais fluida (sem concorrência com reads do polling bidirecional).
+
 ## v4.1.6 — 2026-04-19
 
 ### UX: sincronização de target + refresh entre abas

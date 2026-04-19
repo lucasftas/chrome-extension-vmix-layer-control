@@ -3,6 +3,15 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.7] — 2026-04-19
+
+### Changed
+- **Multilayer agora envia ao vMix apenas no release do mouse** (mouseup), igual à aba Anchor Slip X. Drag local só re-renderiza o canvas; comandos `SetLayer{N}*` são disparados uma única vez quando o usuário solta.
+- Remoção das chamadas `lcThrottleSend` em mousemove (`free` e `snap`). Comportamento consistente entre as duas abas de edição.
+
+### Note
+- Perda de preview "live" no vMix durante drag. Em troca, tráfego HTTP muito menor e animação local mais fluida.
+
 ## [4.1.6] — 2026-04-19
 
 ### Changed
