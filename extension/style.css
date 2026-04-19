@@ -2471,77 +2471,10 @@ body {
 /* =============================================
    Gap Slider (toolbar)
    ============================================= */
-.lc-gap-control {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0 4px;
-    transition: opacity 0.15s ease;
-}
 
-.lc-gap-control.lc-gap-disabled {
-    opacity: 0.35;
-    pointer-events: none;
-}
 
-.lc-gap-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: #999;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-}
 
-.lc-gap-slider {
-    width: 60px;
-    height: 4px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: #252540;
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-}
-.lc-gap-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #e86c00;
-    cursor: pointer;
-    border: none;
-}
-.lc-gap-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #e86c00;
-    cursor: pointer;
-    border: none;
-}
 
-.lc-gap-value {
-    font-size: 10px;
-    font-weight: 700;
-    color: #e86c00;
-    min-width: 18px;
-    text-align: center;
-}
-
-.lc-gap-apply {
-    padding: 2px 8px;
-    font-size: 10px;
-    font-weight: 700;
-    color: #e86c00;
-    background: #252540;
-    border: 1px solid #3a3a5a;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-}
-.lc-gap-apply:hover { background: #3d2e0a; color: #fff; border-color: #e86c00; }
 
 /* =============================================
    Canvas Options Bar (above canvas)
@@ -2581,26 +2514,6 @@ body {
 /* =============================================
    AO VIVO / APPLY Toggle
    ============================================= */
-.lc-live-toggle {
-    padding: 3px 8px;
-    font-size: 10px;
-    font-weight: 700;
-    color: #999;
-    background: #252540;
-    border: 1px solid #3a3a5a;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-    letter-spacing: 0.5px;
-}
-.lc-live-toggle:hover { background: #303050; color: #fff; }
-.lc-live-toggle.active {
-    background: #e86c00;
-    color: #fff;
-    border-color: #e86c00;
-    animation: lc-pulse 1.5s ease-in-out infinite;
-}
 @keyframes lc-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }

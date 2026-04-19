@@ -712,51 +712,10 @@ function lcRender() {
 
 function _lcRenderBoxes(canvas, lc, cW, cH) {
 
-    // Gap visual: half-gap inset por edge, SÓ quando a edge é vizinha colada (gap=0 no modelo).
-    // Se o modelo já tem gap real entre vizinhas, não injetamos inset — evita dobrar o gap visível.
-    const halfGapX = (lcGetGapH() / 2 / 1920) * cW;
-    const halfGapY = STATE.layerControl.gapLockY ? 0 : (lcGetGapV() / 2 / 1080) * cH;
-    const EPS_VIS = 0.002; // ~4px em 1920 de tolerância de "edge colada"
-
-    // Calcula insets por layer analisando vizinhança real no modelo
-    const layerInsets = lc.layers.map(() => ({ L: 0, R: 0, T: 0, B: 0 }));
-    if (halfGapX > 0 || halfGapY > 0) {
-        const visible = lc.layers.map((l, i) => ({ l, i })).filter(o => !o.l.hidden);
-        visible.forEach(({ l: a, i: ai }) => {
-            const aL = a.x, aR = a.x + a.w, aT = a.y, aB = a.y + a.h;
-            visible.forEach(({ l: b, i: bi }) => {
-                if (ai === bi) return;
-                const bL = b.x, bR = b.x + b.w, bT = b.y, bB = b.y + b.h;
-                const yOverlap = Math.min(aB, bB) - Math.max(aT, bT);
-                const xOverlap = Math.min(aR, bR) - Math.max(aL, bL);
-                // Right de a encosta em Left de b (vizinhos H colados)
-                if (halfGapX > 0 && yOverlap > EPS_VIS && Math.abs(aR - bL) < EPS_VIS) {
-                    layerInsets[ai].R = halfGapX;
-                }
-                // Bottom de a encosta em Top de b (vizinhos V colados)
-                if (halfGapY > 0 && xOverlap > EPS_VIS && Math.abs(aB - bT) < EPS_VIS) {
-                    layerInsets[ai].B = halfGapY;
-                }
-                // Left de a encosta em Right de b
-                if (halfGapX > 0 && yOverlap > EPS_VIS && Math.abs(aL - bR) < EPS_VIS) {
-                    layerInsets[ai].L = halfGapX;
-                }
-                // Top de a encosta em Bottom de b
-                if (halfGapY > 0 && xOverlap > EPS_VIS && Math.abs(aT - bB) < EPS_VIS) {
-                    layerInsets[ai].T = halfGapY;
-                }
-            });
-        });
-    }
-
     lc.layers.forEach((l, i) => {
         if (l.hidden) return;
         const b = lcToCanvas(l, cW, cH);
-        const ins = layerInsets[i];
-        const insetL = ins.L;
-        const insetR = ins.R;
-        const insetT = ins.T;
-        const insetB = ins.B;
+        const insetL = 0, insetR = 0, insetT = 0, insetB = 0;
         const isSel = i === lc.selectedLayer;
         const hasInput = !!l.inputKey;
         const box = document.createElement('div');
@@ -1161,16 +1120,6 @@ function lcPushToVMix() {
     showToast('Canvas enviado ao vMix');
 }
 
-// Atualiza visual do slider V: atenuado e inativo quando gapLockY está ligado
-function lcUpdateGapControlsUI() {
-    const sliderV = document.getElementById('lcGapSliderV');
-    if (!sliderV) return;
-    const container = sliderV.closest('.lc-gap-control');
-    const locked = !!STATE.layerControl.gapLockY;
-    sliderV.disabled = locked;
-    if (container) container.classList.toggle('lc-gap-disabled', locked);
-}
-
 // Reset Crop Y — restaura todas as layers ativas para altura total
 function lcResetCropY() {
     const lc = STATE.layerControl;
@@ -1246,109 +1195,6 @@ function lcAlignCenterV() {
     const l = _lcGetSel(); if (!l) return;
     l.y = +(0.5 - l.h / 2).toFixed(6);
     _lcAlignApply(l, 'Alinhar centro V');
-}
-
-// Trim layers: read vMix XML, crop what exceeds canvas, send crop-only updates
-// PanX/PanY/Zoom don't change — only CropX1/X2/Y1/Y2 are adjusted
-// vMix renderer expands each crop edge ~15.5px (31px total gap needed between layers)
-function lcGetGapH() { return STATE.layerControl.rendererGapH ?? 31; }
-function lcGetGapV() { return STATE.layerControl.rendererGapV ?? 31; }
-
-// Apply gap between layers using normalized coordinates (0-1)
-// Works within the SplitView model: adjusts x, y, w, h then sends via lcSendToVMix
-function lcApplyGap() {
-    const lc = STATE.layerControl;
-    if (!lc.targetInputKey) { showToast('Sem input selecionado'); return; }
-
-    const active = lc.layers.filter(l => !l.hidden && l.inputKey);
-    if (active.length < 2) { showToast('Precisa de pelo menos 2 layers ativas'); return; }
-
-    lcPushUndo('Aplicar gap');
-
-    // P5 — trim acumulado sobre geometria nova produz crops assimétricos indesejados.
-    // Gap recria geometria limpa; trim é descartado (mesmo padrão de lcApplyPreset).
-    active.forEach(l => { l.trim = lcMakeTrim(); });
-
-    const gapH = lcGetGapH() / 1920; // normalize to 0-1
-    const gapV = lcGetGapV() / 1080;
-    let changedCount = 0;
-
-    // EPS for overlap/move detection (covers edges exatamente coladas e rollback de enforce)
-    const EPS = 0.0005;
-
-    // ── Passada H: ordenar por x, processar APENAS pares consecutivos com yOverlap ≥ -EPS
-    const byX = [...active].sort((a, b) => a.x - b.x);
-    for (let i = 0; i < byX.length - 1; i++) {
-        const left = byX[i], right = byX[i + 1];
-        const yOverlap = Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y);
-        if (yOverlap < -EPS) continue;
-
-        const currentGap = right.x - (left.x + left.w);
-        if (currentGap < -EPS) continue;
-
-        const diff = currentGap - gapH;
-        if (Math.abs(diff) > 0.001) {
-            const half = diff / 2;
-            const snap = { lw: left.w, rx: right.x, rw: right.w };
-            left.w = +(left.w + half).toFixed(6);
-            right.x = +(right.x - half).toFixed(6);
-            right.w = +(right.w + half).toFixed(6);
-            lcEnforceGapLockY(left);
-            lcEnforceGapLockY(right);
-
-            const moved = Math.abs(left.w - snap.lw) > EPS
-                       || Math.abs(right.x - snap.rx) > EPS
-                       || Math.abs(right.w - snap.rw) > EPS;
-
-            if (moved) {
-                left._posSet = true; right._posSet = true;
-                changedCount++;
-            } else {
-                left.w = snap.lw; right.x = snap.rx; right.w = snap.rw;
-            }
-        }
-    }
-
-    // ── Passada V: só se gapLockY desativado. Ordenar por y, pares consecutivos com xOverlap ≥ -EPS
-    if (!lc.gapLockY) {
-        const byY = [...active].sort((a, b) => a.y - b.y);
-        for (let i = 0; i < byY.length - 1; i++) {
-            const top = byY[i], bot = byY[i + 1];
-            const xOverlap = Math.min(top.x + top.w, bot.x + bot.w) - Math.max(top.x, bot.x);
-            if (xOverlap < -EPS) continue;
-
-            const currentGap = bot.y - (top.y + top.h);
-            if (currentGap < -EPS) continue;
-
-            const diff = currentGap - gapV;
-            if (Math.abs(diff) > 0.001) {
-                const half = diff / 2;
-                const snap = { th: top.h, by: bot.y, bh: bot.h };
-                top.h = +(top.h + half).toFixed(6);
-                bot.y = +(bot.y - half).toFixed(6);
-                bot.h = +(bot.h + half).toFixed(6);
-
-                const moved = Math.abs(top.h - snap.th) > EPS
-                           || Math.abs(bot.y - snap.by) > EPS
-                           || Math.abs(bot.h - snap.bh) > EPS;
-
-                if (moved) {
-                    top._posSet = true; bot._posSet = true;
-                    changedCount++;
-                } else {
-                    top.h = snap.th; bot.y = snap.by; bot.h = snap.bh;
-                }
-            }
-        }
-    }
-
-    if (changedCount > 0) {
-        lcRender();
-        active.forEach(l => lcSendToVMix(l));
-        showToast(`Gap aplicado em ${changedCount} par(es)`);
-    } else {
-        showToast('Gap já está no valor desejado');
-    }
 }
 
 // =============================================
