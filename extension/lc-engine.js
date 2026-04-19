@@ -1085,6 +1085,74 @@ document.addEventListener('mouseup', () => {
 });
 
 // =============================================
+// ANCHOR SLIP X — utils e constantes
+// =============================================
+
+// Snap magnético: |slipX| < THRESHOLD gruda no centro.
+const LC_ANCHOR_SNAP_THRESHOLD = 0.05;
+// Bordas vermelhas de alerta.
+const LC_ANCHOR_NEAR_EDGE = 0.75;
+const LC_ANCHOR_AT_EDGE = 0.92;
+
+// Hue HSL correspondente a cada LC_COLORS[i] (app.js:64) — usado pra colorizar
+// a textura de referência SVG por layer.
+//  0: #0000ff azul    → 240   5: #800080 roxo    → 300
+//  1: #ff0000 vermelho→   0   6: #800000 maroon  →   0
+//  2: #ffa500 laranja →  39   7: #40e0d0 turquesa→ 174
+//  3: #008000 verde   → 120   8: #a52a2a brown   →   0
+//  4: #ffff00 amarelo →  60   9: #ff69b4 rosa    → 330
+const LAYER_HUES = [240, 0, 39, 120, 60, 300, 0, 174, 0, 330];
+
+// Quanto deslizamento está disponível (normalizado 0-1, por lado) pra essa layer.
+// = baseCropX = (Z - w) / 2 / Z
+function lcAnchorBaseCropX(l) {
+    const Z = Math.max(l.w, l.h);
+    return Math.max(0, (Z - l.w) / 2 / Z);
+}
+
+function lcAnchorHasSlipRange(l) {
+    return lcAnchorBaseCropX(l) > 0.001;
+}
+
+// Gera labels A1–I16 (9×16 grid) para a textura de referência.
+let _lcAnchorGridLabels = null;
+function _lcAnchorBuildGridLabels() {
+    if (_lcAnchorGridLabels) return _lcAnchorGridLabels;
+    const rows = 'ABCDEFGHI';
+    let out = '';
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 16; c++) {
+            out += `<text x="${60 + c * 120}" y="${68 + r * 120}">${rows[r]}${c + 1}</text>`;
+        }
+    }
+    _lcAnchorGridLabels = out;
+    return out;
+}
+
+// Gera SVG de textura de referência (1920×1080) tingido pelo hue da layer.
+// 4 tons HSL: bg quase branco, grid mid, diagonais médias, círculo escuro.
+function lcAnchorBuildTextureSVG(hue) {
+    const bg = `hsl(${hue}, 100%, 97%)`;
+    const g  = `hsl(${hue}, 100%, 78%)`;
+    const d  = `hsl(${hue}, 91%, 60%)`;
+    const dk = `hsl(${hue}, 64%, 33%)`;
+    const pid = `asp-${hue}`;
+    return `<svg viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+      <defs><pattern id="${pid}" width="120" height="120" patternUnits="userSpaceOnUse">
+        <rect width="120" height="120" fill="none" stroke="${g}" stroke-width="1" opacity="0.5"/>
+      </pattern></defs>
+      <rect width="1920" height="1080" fill="${bg}"/>
+      <rect width="1920" height="1080" fill="url(#${pid})"/>
+      <g fill="${g}" font-size="20" font-family="monospace" text-anchor="middle" font-weight="bold" opacity="0.6">${_lcAnchorBuildGridLabels()}</g>
+      <line x1="0" y1="0" x2="1920" y2="1080" stroke="${d}" stroke-width="2" stroke-dasharray="15 15"/>
+      <line x1="1920" y1="0" x2="0" y2="1080" stroke="${d}" stroke-width="2" stroke-dasharray="15 15"/>
+      <circle cx="960" cy="540" r="60" fill="${dk}"/>
+      <line x1="920" y1="540" x2="1000" y2="540" stroke="${bg}" stroke-width="8" stroke-linecap="round"/>
+      <line x1="960" y1="500" x2="960" y2="580" stroke="${bg}" stroke-width="8" stroke-linecap="round"/>
+    </svg>`;
+}
+
+// =============================================
 // VMIX API DISPATCH
 // =============================================
 
