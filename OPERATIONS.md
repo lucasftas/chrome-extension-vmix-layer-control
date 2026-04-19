@@ -1,5 +1,14 @@
 # Operations Log
 
+## 2026-04-19 (v4.1.9) — Release estável final
+- [x] Bump 4.1.8 → 4.1.9 e consolidação do ciclo v4.1.4..v4.1.9
+- [x] README.md reescrito com badges, botão de download direto do release e tutorial de instalação passo-a-passo
+- [x] Modo "Grupos" na aba Inputs com headers coloridos por tipo (mesmo bg-* dos cards) e prioridade Capture/Cor/Mic-Line/Vídeo
+- [x] Histórico colapsado por padrão (faixa 36px) com ícone estilo TimeMachine; marcado como candidato a remoção futura via comentário no HTML
+- [x] Nota interna: user feedback salvou regra "release só com 'filé' explícito" no memory
+- [x] Repositório local limpo: zips v3.1.3 + v4.0.0..v4.1.8 removidos, pasta `mocks/` removida (já no .gitignore)
+- [x] Release v4.1.9 publicada
+
 ## 2026-04-19 (v4.1.8)
 - [x] Painel Histórico colapsado por padrão (classe `.collapsed` no HTML)
 - [x] Header clicável alterna estado; clear button com `stopPropagation` pra não acionar toggle
