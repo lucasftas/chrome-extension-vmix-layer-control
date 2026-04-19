@@ -22,3 +22,6 @@ SplitView.md
 node_modules/
 icone.png
 Microsoft_Add-ons.md
+
+# Release artifacts (uploaded to GitHub Releases, not tracked)
+vmix-layer-control-v*.zip
