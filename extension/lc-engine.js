@@ -724,6 +724,7 @@ function lcUpdateRowVisuals(containerId = 'layerList') {
 function lcRender() {
     lcRenderCanvas();
     lcRenderLayerList();
+    lcUpdateSlipWarning();
 }
 
 function _lcRenderBoxes(canvas, lc, cW, cH) {
@@ -862,6 +863,36 @@ function _lcRenderBoxes(canvas, lc, cW, cH) {
 // LAYER LIST (10-row panel with dropdowns)
 // =============================================
 
+// Chip SLIP exibido na row da layer quando slipX != 0. Mesma função usada
+// pelas duas abas pra consistência visual.
+function _lcMakeSlipBadge(l) {
+    if (!l.slipX || Math.abs(l.slipX) < 0.001) return null;
+    const span = document.createElement('span');
+    span.className = 'lc-slip-badge';
+    span.textContent = 'SLIP';
+    span.title = `Anchor Slip X: ${(l.slipX > 0 ? '+' : '')}${l.slipX.toFixed(2)}`;
+    return span;
+}
+
+// Atualiza a tarja de warning no Multilayer quando o target tem layers
+// com slip ativo. Aplicar um preset de lá vai zerar o slipX dessas layers.
+function lcUpdateSlipWarning() {
+    const el = document.getElementById('lcSlipWarning');
+    const txt = document.getElementById('lcSlipWarningText');
+    if (!el || !txt) return;
+    const slipped = STATE.layerControl.layers.filter(l =>
+        l.inputKey && l.slipX && Math.abs(l.slipX) > 0.001
+    );
+    if (slipped.length === 0) {
+        el.classList.add('hidden');
+        return;
+    }
+    el.classList.remove('hidden');
+    const list = slipped.map(l => `L${l.index + 1}`).join(', ');
+    const plural = slipped.length > 1 ? 's' : '';
+    txt.textContent = `${slipped.length} layer${plural} com anchor deslocado (${list}) — aplicar preset vai centralizar`;
+}
+
 function lcRenderLayerList(containerId = 'layerList') {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -980,6 +1011,8 @@ function lcRenderLayerList(containerId = 'layerList') {
 
         row.addEventListener('click', () => { if (l.inputKey && !l.hidden) { lc.selectedLayer = i; lcRender(); } });
         row.appendChild(num); row.appendChild(check); row.appendChild(select);
+        const badge = _lcMakeSlipBadge(l);
+        if (badge) row.appendChild(badge);
         container.appendChild(row);
     }
 
@@ -1611,6 +1644,8 @@ function lcAnchorRenderLayerList() {
 
         row.appendChild(num);
         row.appendChild(label);
+        const badge = _lcMakeSlipBadge(l);
+        if (badge) row.appendChild(badge);
 
         if (has) {
             row.addEventListener('click', () => {
