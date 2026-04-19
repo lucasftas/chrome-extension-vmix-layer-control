@@ -115,6 +115,7 @@ function lcMakeLayer(index) {
         color: LC_COLORS[index % LC_COLORS.length],
         trim: lcMakeTrim(),
         x: 0, y: 0, w: 1, h: 1,
+        slipX: 0,          // Anchor Slip X: desloca o crop em paralelo (-1 a +1), mantém pan/zoom
         hidden: true,
         _posSet: false,
         _knownState: false
@@ -134,6 +135,7 @@ function lcSnapshotState() {
         index: l.index, inputKey: l.inputKey, inputTitle: l.inputTitle,
         x: l.x, y: l.y, w: l.w, h: l.h,
         trim: { ...l.trim },
+        slipX: l.slipX || 0,
         hidden: l.hidden, _knownState: l._knownState, _checkOff: l._checkOff
     }));
 }
@@ -171,10 +173,12 @@ function lcRestoreSnapshot(entry) {
         l.inputKey = s.inputKey; l.inputTitle = s.inputTitle;
         l.x = s.x; l.y = s.y; l.w = s.w; l.h = s.h;
         l.trim = s.trim ? { ...s.trim } : lcMakeTrim();
+        l.slipX = s.slipX || 0;
         l.hidden = s.hidden; l._knownState = s._knownState; l._checkOff = s._checkOff;
         l._posSet = true;
     });
-    lcRender();
+    if (STATE.activeTab === 'anchor') lcAnchorRender();
+    else lcRender();
     // Send to vMix
     const base = lcVMixBase();
     if (!base) return;
@@ -202,14 +206,16 @@ function lcGetRendererOffsetY() { return STATE.layerControl.rendererOffsetY ?? 0
 // Normalized (0-1) → vMix API values (pure math, no side effects)
 // Pan/Zoom computed from x,y,w,h (geometry stays intact).
 // Trim (l.trim) produces ASYMMETRIC crop — hides specific edges without moving content.
+// slipX desloca o crop em PARALELO (anchor slip) — mantém pan/zoom, move cropX1/cropX2 juntos.
 function lcToVMix(l) {
     const Z = Math.max(l.w, l.h);
     const panX = (l.x + l.w / 2) * 2 - 1;
     const panY = 1 - (l.y + l.h / 2) * 2;
     const baseCropX = Math.max(0, (Z - l.w) / 2 / Z);
     const baseCropY = Math.max(0, (Z - l.h) / 2 / Z);
-    const finalCropX1 = baseCropX + ((l.trim?.left || 0) / Z);
-    const finalCropX2 = (1 - baseCropX) - ((l.trim?.right || 0) / Z);
+    const slipOffsetX = (l.slipX || 0) * baseCropX;
+    const finalCropX1 = baseCropX + ((l.trim?.left || 0) / Z) + slipOffsetX;
+    const finalCropX2 = (1 - baseCropX) - ((l.trim?.right || 0) / Z) + slipOffsetX;
     const finalCropY1 = baseCropY + ((l.trim?.top || 0) / Z);
     const finalCropY2 = (1 - baseCropY) - ((l.trim?.bottom || 0) / Z);
     return {
@@ -240,21 +246,27 @@ function lcEnforceGapLockY(layer) {
 }
 
 // vMix XML values → normalized (0-1)
-// Decomposes vMix crop into symmetric base (geometry) + asymmetric trim overlay.
+// Eixo X: decompõe crop em base (geometria) + slipX (anchor deslizado paralelamente).
+//   - baseCropX = média dos crops (o valor simétrico real da geometria)
+//   - diffCropX = diferença / 2 = offset de slip
+//   - slipX = diffCropX / baseCropX (normalizado em -1..+1)
+//   - trim.left/right são zerados no pull — slip tem prioridade em X.
+// Eixo Y: mantém decomposição original (base simétrica + trim assimétrico). slipY ainda não existe.
 function lcFromVMix(panX, panY, zoom, cropX1, cropY1, cropX2, cropY2) {
     const Z = zoom || 1;
     // Reverse renderer offset if cropX2/cropY2 available
     const cx2 = (cropX2 != null) ? cropX2 + (cropX1 > 0.001 ? lcGetRendererOffsetX() : 0) : 1 - cropX1;
     const cy2 = (cropY2 != null) ? cropY2 + (cropY1 > 0.001 ? lcGetRendererOffsetY() : 0) : 1 - cropY1;
-    // Isolate symmetric base crop (the smaller of left/right, top/bottom)
-    const baseCropX = Math.min(cropX1, 1 - cx2);
+    // X — base + slip (priority over trim)
+    const avgCropX = Math.max(0, (cropX1 + (1 - cx2)) / 2);
+    const diffCropX = (cropX1 - (1 - cx2)) / 2;
+    const baseCropX = avgCropX;
+    const slipXRaw = baseCropX > 0.001 ? diffCropX / baseCropX : 0;
+    const slipX = Math.max(-1, Math.min(1, slipXRaw));
+    // Y — base + trim assimétrico (original)
     const baseCropY = Math.min(cropY1, 1 - cy2);
-    // Base geometry ignoring trim
     const w = Z * (1 - 2 * baseCropX);
     const h = Z * (1 - 2 * baseCropY);
-    // Deduce asymmetric trim extras
-    const trimLeft = (cropX1 - baseCropX) * Z;
-    const trimRight = ((1 - cx2) - baseCropX) * Z;
     const trimTop = (cropY1 - baseCropY) * Z;
     const trimBottom = ((1 - cy2) - baseCropY) * Z;
     const cx = (panX + 1) / 2;
@@ -264,7 +276,8 @@ function lcFromVMix(panX, panY, zoom, cropX1, cropY1, cropX2, cropY2) {
         y: +(cy - h / 2).toFixed(6),
         w: +Math.max(0.01, w).toFixed(6),
         h: +Math.max(0.01, h).toFixed(6),
-        trim: { left: +trimLeft.toFixed(6), right: +trimRight.toFixed(6), top: +trimTop.toFixed(6), bottom: +trimBottom.toFixed(6) }
+        trim: { left: 0, right: 0, top: +trimTop.toFixed(6), bottom: +trimBottom.toFixed(6) },
+        slipX: +slipX.toFixed(6)
     };
 }
 
@@ -324,8 +337,8 @@ function lcApplyPreset(presetId) {
     const lc = STATE.layerControl;
     lcPushUndo(`Preset ${presetId}`);
 
-    // Re-lock all manual overrides and clear trim when applying presets
-    lc.layers.forEach(l => { l.trim = lcMakeTrim(); });
+    // Clear trim e slipX ao aplicar preset (geometria limpa)
+    lc.layers.forEach(l => { l.trim = lcMakeTrim(); l.slipX = 0; });
 
     let boxes;
     if (presetId === 'auto') {
@@ -486,10 +499,15 @@ function lcShowInputSelector() {
             row.addEventListener('click', async () => {
                 STATE.layerControl.targetInputKey = row.dataset.key;
                 STATE.layerControl.targetInputTitle = row.dataset.title;
-                document.getElementById('lcTargetLabel').textContent = `#${row.dataset.number} ${row.dataset.title}`;
+                const label = `#${row.dataset.number} ${row.dataset.title}`;
+                const mlLbl = document.getElementById('lcTargetLabel');
+                const anLbl = document.getElementById('lcAnchorTargetLabel');
+                if (mlLbl) mlLbl.textContent = label;
+                if (anLbl) anLbl.textContent = label;
                 closeModal();
                 await lcFetchInputLayers();
-                lcRender();
+                if (STATE.activeTab === 'anchor') lcAnchorRender();
+                else lcRender();
                 lcInitHistory();
                 lcStartSync();
             });
@@ -545,7 +563,7 @@ async function lcFetchInputLayers() {
             const ov = ovMap[i];
             if (ov) {
                 l.inputKey = ov.key; l.inputTitle = ov.title;
-                if (!l._posSet) { l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h; l.trim = ov.trim || lcMakeTrim(); l._posSet = true; }
+                if (!l._posSet) { l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h; l.trim = ov.trim || lcMakeTrim(); l.slipX = ov.slipX || 0; l._posSet = true; }
                 // Respect _checkOff: don't show layers the user/preset turned off
                 if (!l._checkOff) l.hidden = false;
             } else {
@@ -648,7 +666,7 @@ function lcStartResizeObserver() {
 
 // Keyboard shortcuts for undo/redo
 document.addEventListener('keydown', e => {
-    if (STATE.activeTab !== 'layers') return;
+    if (STATE.activeTab !== 'layers' && STATE.activeTab !== 'anchor') return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); lcUndo(); }
     if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); lcRedo(); }
@@ -682,8 +700,8 @@ function lcRenderCanvas() {
 }
 
 // Update visual state of layer list rows without rebuilding DOM
-function lcUpdateRowVisuals() {
-    const container = document.getElementById('layerList');
+function lcUpdateRowVisuals(containerId = 'layerList') {
+    const container = document.getElementById(containerId);
     if (!container) return;
     const lc = STATE.layerControl;
     const rows = container.querySelectorAll('.lc-layer-row');
@@ -846,8 +864,8 @@ function _lcRenderBoxes(canvas, lc, cW, cH) {
 // LAYER LIST (10-row panel with dropdowns)
 // =============================================
 
-function lcRenderLayerList() {
-    const container = document.getElementById('layerList');
+function lcRenderLayerList(containerId = 'layerList') {
+    const container = document.getElementById(containerId);
     if (!container) return;
     const lc = STATE.layerControl;
     const inst = getActiveInstance();
@@ -994,6 +1012,46 @@ function lcRenderLayerList() {
 document.addEventListener('mousemove', e => {
     if (!_lcDrag) return;
     const lc = STATE.layerControl;
+
+    // Anchor Slip X: drag horizontal, atualiza slipX com snap no centro.
+    // Não usa rect/cW/cH do canvas multilayer; trabalha em pixels absolutos.
+    if (_lcDrag.type === 'anchor') {
+        const l = lc.layers[_lcDrag.i];
+        if (!l) return;
+        const dx = e.clientX - _lcDrag.startClientX;
+        const delta = (dx / _lcDrag.boxWpx) * 2;
+        let newSlip = _lcDrag.startSlip + delta;
+        newSlip = Math.max(-1, Math.min(1, newSlip));
+
+        const wasSnapped = _lcDrag.justSnapped === true;
+        let snappedNow = false;
+        if (Math.abs(newSlip) < LC_ANCHOR_SNAP_THRESHOLD) {
+            newSlip = 0;
+            if (!wasSnapped) snappedNow = true;
+        }
+        _lcDrag.justSnapped = Math.abs(newSlip) < 0.0001;
+        l.slipX = newSlip;
+
+        // Info ao vivo na toolbar
+        const info = document.getElementById('lcAnchorInfo');
+        if (info) {
+            const atLim = Math.abs(newSlip) > LC_ANCHOR_AT_EDGE;
+            const tag = newSlip === 0
+                ? '<span style="color:#22c55e;font-weight:bold;">· colado no centro</span>'
+                : (atLim ? '· <span style="color:var(--danger,#ef4444);">no limite!</span>' : '');
+            info.innerHTML = `Layer <strong>${l.index + 1}</strong> · slipX <strong>${newSlip >= 0 ? '+' : ''}${newSlip.toFixed(3)}</strong> ${tag}`;
+        }
+
+        lcAnchorRender();
+
+        // Flash verde no momento do snap
+        if (snappedNow) {
+            const h = document.querySelector('.anchor-canvas-wrapper .transform-handles');
+            if (h) { h.classList.add('snapped'); setTimeout(() => h.classList.remove('snapped'), 400); }
+        }
+        return;
+    }
+
     const { rect, cW, cH } = _lcDrag;
     const mx = lcClamp((e.clientX - rect.left) / cW, 0, 1);
     const my = lcClamp((e.clientY - rect.top) / cH, 0, 1);
@@ -1065,12 +1123,333 @@ document.addEventListener('mouseup', () => {
     if (!_lcDrag) return;
     const lc = STATE.layerControl;
     const type = _lcDrag.type, idx = _lcDrag.i;
+    const startSlip = _lcDrag.startSlip;
     _lcDrag = null;
+
+    if (type === 'anchor') {
+        const l = lc.layers[idx];
+        if (l && Math.abs((l.slipX || 0) - (startSlip || 0)) > 0.001) {
+            lcPushUndo('Anchor Slip X');
+            lcSendToVMix(l);
+        }
+        lcAnchorRender();
+        return;
+    }
+
     lcPushUndo(type === 'snap' ? 'Resize layer' : 'Mover layer');
     lcRender();
     if (type === 'snap') lc.layers.forEach(l => { if (!l.hidden && l.inputKey) lcSendToVMix(l); });
     else { const l = lc.layers[idx]; if (l) lcSendToVMix(l); }
 });
+
+// =============================================
+// ANCHOR SLIP X — utils e constantes
+// =============================================
+
+// Snap magnético: |slipX| < THRESHOLD gruda no centro.
+const LC_ANCHOR_SNAP_THRESHOLD = 0.05;
+// Bordas vermelhas de alerta.
+const LC_ANCHOR_NEAR_EDGE = 0.75;
+const LC_ANCHOR_AT_EDGE = 0.92;
+
+// Hue HSL correspondente a cada LC_COLORS[i] (app.js:64) — usado pra colorizar
+// a textura de referência SVG por layer.
+//  0: #0000ff azul    → 240   5: #800080 roxo    → 300
+//  1: #ff0000 vermelho→   0   6: #800000 maroon  →   0
+//  2: #ffa500 laranja →  39   7: #40e0d0 turquesa→ 174
+//  3: #008000 verde   → 120   8: #a52a2a brown   →   0
+//  4: #ffff00 amarelo →  60   9: #ff69b4 rosa    → 330
+const LAYER_HUES = [240, 0, 39, 120, 60, 300, 0, 174, 0, 330];
+
+// Quanto deslizamento está disponível (normalizado 0-1, por lado) pra essa layer.
+// = baseCropX = (Z - w) / 2 / Z
+function lcAnchorBaseCropX(l) {
+    const Z = Math.max(l.w, l.h);
+    return Math.max(0, (Z - l.w) / 2 / Z);
+}
+
+function lcAnchorHasSlipRange(l) {
+    return lcAnchorBaseCropX(l) > 0.001;
+}
+
+// Gera labels A1–I16 (9×16 grid) para a textura de referência.
+let _lcAnchorGridLabels = null;
+function _lcAnchorBuildGridLabels() {
+    if (_lcAnchorGridLabels) return _lcAnchorGridLabels;
+    const rows = 'ABCDEFGHI';
+    let out = '';
+    for (let r = 0; r < 9; r++) {
+        for (let c = 0; c < 16; c++) {
+            out += `<text x="${60 + c * 120}" y="${68 + r * 120}">${rows[r]}${c + 1}</text>`;
+        }
+    }
+    _lcAnchorGridLabels = out;
+    return out;
+}
+
+// Inicia drag horizontal numa layer-box do anchor. Seta _lcDrag com type='anchor'.
+// mousemove/mouseup globais (acima) processam o tipo.
+function lcAnchorStartDrag(e, i) {
+    e.preventDefault(); e.stopPropagation();
+    const lc = STATE.layerControl;
+    const l = lc.layers[i];
+    if (!l || !l.inputKey) return;
+    lc.selectedLayer = i;
+    const boxEl = e.currentTarget;
+    _lcDrag = {
+        type: 'anchor',
+        i,
+        startClientX: e.clientX,
+        startSlip: l.slipX || 0,
+        boxWpx: boxEl.offsetWidth || 1,
+        justSnapped: false
+    };
+    lcAnchorRender();
+}
+
+// Reset de slipX em uma layer (via dblclick).
+function lcAnchorReset(i) {
+    const lc = STATE.layerControl;
+    const l = lc.layers[i];
+    if (!l || l.hidden || !l.inputKey) return;
+    if (Math.abs(l.slipX || 0) < 0.001) return;
+    lcPushUndo('Reset Anchor Slip X');
+    l.slipX = 0;
+    lcAnchorRender();
+    lcSendToVMix(l);
+    showToast(`Layer ${l.index + 1}: âncora centralizada`);
+}
+
+// Reset da layer selecionada (via botão "Centralizar" na toolbar).
+function lcAnchorResetSelected() {
+    const lc = STATE.layerControl;
+    lcAnchorReset(lc.selectedLayer);
+}
+
+// Fit do canvas anchor mantendo 16:9 (mesma lógica de lcFitCanvas).
+function lcAnchorFitCanvas() {
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    const canvas = document.getElementById('anchorCanvas');
+    if (!wrapper || !canvas) return;
+    const wW = wrapper.clientWidth;
+    const wH = wrapper.clientHeight;
+    if (!wW || !wH) return;
+    const availW = wW - LC_CANVAS_MARGIN * 2;
+    const availH = wH - LC_CANVAS_MARGIN * 2;
+    let cW, cH;
+    if (availW / availH > 16 / 9) {
+        cH = availH; cW = cH * 16 / 9;
+    } else {
+        cW = availW; cH = cW * 9 / 16;
+    }
+    cW = Math.max(1, Math.round(cW));
+    cH = Math.max(1, Math.round(cH));
+    canvas.style.width = cW + 'px';
+    canvas.style.height = cH + 'px';
+    canvas.style.left = Math.round((wW - cW) / 2) + 'px';
+    canvas.style.top = Math.round((wH - cH) / 2) + 'px';
+    return { cW, cH };
+}
+
+// ResizeObserver específico do wrapper anchor.
+let _lcAnchorResizeObserver = null;
+function lcAnchorStartResizeObserver() {
+    if (_lcAnchorResizeObserver) return;
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    if (!wrapper) return;
+    _lcAnchorResizeObserver = new ResizeObserver(() => {
+        if (STATE.activeTab === 'anchor') lcAnchorRenderCanvas();
+    });
+    _lcAnchorResizeObserver.observe(wrapper);
+}
+
+// Welcome quando não há input-alvo selecionado.
+function lcAnchorShowWelcome() {
+    const canvas = document.getElementById('anchorCanvas');
+    if (!canvas) return;
+    lcAnchorFitCanvas();
+    canvas.innerHTML = `<div class="lc-welcome">
+        <div class="lc-welcome-icon">${getIcon('anchor')}</div>
+        <div class="lc-welcome-title">Anchor Slip X</div>
+        <div class="lc-welcome-sub">Selecione um input abaixo para começar a deslizar a âncora</div>
+    </div>`;
+}
+
+// Render completo do Anchor (canvas + lista lateral).
+function lcAnchorRender() {
+    lcAnchorRenderCanvas();
+    lcRenderLayerList('anchorLayerList');
+}
+
+// Render do canvas anchor: layer-boxes com textura por hue, ghost, handles.
+function lcAnchorRenderCanvas() {
+    const canvas = document.getElementById('anchorCanvas');
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    if (!canvas || !wrapper) return;
+    const fit = lcAnchorFitCanvas();
+    if (!fit) return;
+    const { cW, cH } = fit;
+
+    // Limpa canvas e overlays antigos (ghost + handles ficam no wrapper fora do canvas)
+    canvas.innerHTML = '';
+    wrapper.querySelectorAll('.ghost-texture, .transform-handles').forEach(n => n.remove());
+
+    const lc = STATE.layerControl;
+    lc.layers.forEach((l, i) => {
+        if (l.hidden || !l.inputKey) return;
+
+        const Z = Math.max(l.w, l.h);
+        const baseCropX = lcAnchorBaseCropX(l);
+
+        const box = document.createElement('div');
+        box.className = 'anchor-layer-box' + (i === lc.selectedLayer ? ' selected' : '');
+        box.dataset.i = i;
+        box.style.left = (l.x * 100) + '%';
+        box.style.top = (l.y * 100) + '%';
+        box.style.width = (l.w * 100) + '%';
+        box.style.height = (l.h * 100) + '%';
+
+        // SVG de textura com hue da layer, deslocada conforme slipX
+        const svgWrap = document.createElement('div');
+        svgWrap.className = 'anchor-layer-svg';
+        svgWrap.innerHTML = lcAnchorBuildTextureSVG(LAYER_HUES[l.index] ?? 0);
+        const textureW = Z * cW;
+        const textureH = l.h * cH;
+        const svgLeftInLayer = -(1 + (l.slipX || 0)) * baseCropX * cW;
+        svgWrap.style.left = svgLeftInLayer + 'px';
+        svgWrap.style.width = textureW + 'px';
+        svgWrap.style.height = textureH + 'px';
+        const svgEl = svgWrap.querySelector('svg');
+        if (svgEl) { svgEl.setAttribute('width', textureW); svgEl.setAttribute('height', textureH); }
+        box.appendChild(svgWrap);
+
+        // Linha-guia vertical central (referência do "zero" do slip)
+        const guide = document.createElement('div');
+        guide.className = 'anchor-center-guide';
+        guide.style.left = '50%';
+        box.appendChild(guide);
+
+        // Label flutuante
+        const tag = document.createElement('div');
+        tag.className = 'anchor-layer-tag';
+        tag.textContent = `L${l.index + 1} · ${l.inputTitle || '—'}`;
+        box.appendChild(tag);
+
+        // Interação: click seleciona, mousedown inicia drag, dblclick reseta
+        box.addEventListener('mousedown', e => lcAnchorStartDrag(e, i));
+        box.addEventListener('click', e => {
+            if (!_lcDrag) { lc.selectedLayer = i; lcAnchorRender(); }
+        });
+        box.addEventListener('dblclick', e => {
+            e.preventDefault(); e.stopPropagation();
+            lcAnchorReset(i);
+        });
+
+        // Drop de input no canvas — reusa lógica de lcAssignLayerInput
+        lcSetupDropTarget(box, e => {
+            try {
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data && data.key) {
+                    l.inputKey = data.key;
+                    l.inputTitle = data.shortTitle || data.title || '';
+                    l.hidden = false; l._knownState = true; l._checkOff = false;
+                    lc.selectedLayer = i;
+                    lcAssignLayerInput(l.index, data.key);
+                    lcAnchorRender();
+                    lcSendToVMix(l);
+                }
+            } catch { }
+        });
+
+        canvas.appendChild(box);
+    });
+
+    // Ghost texture + Transform Handles SÓ pra layer selecionada
+    const sel = lc.layers[lc.selectedLayer];
+    if (sel && !sel.hidden && sel.inputKey) lcAnchorRenderOverlay(sel, cW, cH);
+}
+
+// Renderiza a textura ghost (fora do canvas) + Transform Handles da layer selecionada.
+function lcAnchorRenderOverlay(l, cW, cH) {
+    const canvas = document.getElementById('anchorCanvas');
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    if (!canvas || !wrapper) return;
+    const Z = Math.max(l.w, l.h);
+    const baseCropX = lcAnchorBaseCropX(l);
+
+    // Posição do canvas dentro do wrapper (precisamos das coords absolutas do wrapper)
+    const cRect = canvas.getBoundingClientRect();
+    const wRect = wrapper.getBoundingClientRect();
+    const cLeft = cRect.left - wRect.left;
+    const cTop = cRect.top - wRect.top;
+
+    // Ghost: textura completa (Z em unidades normalizadas), deslocada por slipX
+    //   textureLeftNorm = l.x - (Z - w)/2 - slipX * baseCropX
+    const textureLeftNorm = l.x - (Z - l.w) / 2 - (l.slipX || 0) * baseCropX;
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost-texture';
+    ghost.style.left = (cLeft + textureLeftNorm * cW) + 'px';
+    ghost.style.top = (cTop + l.y * cH) + 'px';
+    ghost.style.width = (Z * cW) + 'px';
+    ghost.style.height = (l.h * cH) + 'px';
+    ghost.innerHTML = lcAnchorBuildTextureSVG(LAYER_HUES[l.index] ?? 0);
+    const ghostSvg = ghost.querySelector('svg');
+    if (ghostSvg) { ghostSvg.setAttribute('width', Z * cW); ghostSvg.setAttribute('height', l.h * cH); }
+    const glabel = document.createElement('span');
+    glabel.className = 'ghost-label';
+    glabel.textContent = `TEXTURA · ${l.inputTitle || 'layer ' + (l.index + 1)}`;
+    ghost.appendChild(glabel);
+    wrapper.appendChild(ghost);
+
+    // Transform Handles sobre o crop visível (= tamanho da layer)
+    const handles = document.createElement('div');
+    handles.className = 'transform-handles';
+    handles.style.left = (cLeft + l.x * cW) + 'px';
+    handles.style.top = (cTop + l.y * cH) + 'px';
+    handles.style.width = (l.w * cW) + 'px';
+    handles.style.height = (l.h * cH) + 'px';
+
+    const absSlip = Math.abs(l.slipX || 0);
+    if (absSlip > LC_ANCHOR_AT_EDGE) handles.classList.add('at-edge');
+    else if (absSlip > LC_ANCHOR_NEAR_EDGE) handles.classList.add('near-edge');
+
+    ['nw','n','ne','e','se','s','sw','w'].forEach(pos => {
+        const h = document.createElement('div');
+        h.className = 'handle h-' + pos;
+        handles.appendChild(h);
+    });
+
+    const hint = document.createElement('div');
+    hint.className = 'hint-text';
+    const sx = l.slipX || 0;
+    hint.textContent = `slipX ${sx >= 0 ? '+' : ''}${sx.toFixed(3)}${absSlip > LC_ANCHOR_AT_EDGE ? ' · LIMITE!' : ''}`;
+    handles.appendChild(hint);
+
+    wrapper.appendChild(handles);
+}
+
+// Gera SVG de textura de referência (1920×1080) tingido pelo hue da layer.
+// 4 tons HSL: bg quase branco, grid mid, diagonais médias, círculo escuro.
+function lcAnchorBuildTextureSVG(hue) {
+    const bg = `hsl(${hue}, 100%, 97%)`;
+    const g  = `hsl(${hue}, 100%, 78%)`;
+    const d  = `hsl(${hue}, 91%, 60%)`;
+    const dk = `hsl(${hue}, 64%, 33%)`;
+    const pid = `asp-${hue}`;
+    return `<svg viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+      <defs><pattern id="${pid}" width="120" height="120" patternUnits="userSpaceOnUse">
+        <rect width="120" height="120" fill="none" stroke="${g}" stroke-width="1" opacity="0.5"/>
+      </pattern></defs>
+      <rect width="1920" height="1080" fill="${bg}"/>
+      <rect width="1920" height="1080" fill="url(#${pid})"/>
+      <g fill="${g}" font-size="20" font-family="monospace" text-anchor="middle" font-weight="bold" opacity="0.6">${_lcAnchorBuildGridLabels()}</g>
+      <line x1="0" y1="0" x2="1920" y2="1080" stroke="${d}" stroke-width="2" stroke-dasharray="15 15"/>
+      <line x1="1920" y1="0" x2="0" y2="1080" stroke="${d}" stroke-width="2" stroke-dasharray="15 15"/>
+      <circle cx="960" cy="540" r="60" fill="${dk}"/>
+      <line x1="920" y1="540" x2="1000" y2="540" stroke="${bg}" stroke-width="8" stroke-linecap="round"/>
+      <line x1="960" y1="500" x2="960" y2="580" stroke="${bg}" stroke-width="8" stroke-linecap="round"/>
+    </svg>`;
+}
 
 // =============================================
 // VMIX API DISPATCH
@@ -1517,10 +1896,11 @@ async function lcSyncFromVMix() {
                 if (l.hidden && !l._checkOff) {
                     l.hidden = false; changed = true;
                 }
-                // Sync position + trim (skip layer being edited, skip during preset application)
+                // Sync position + trim + slipX (skip layer being edited, skip during preset application)
                 if (i !== lc.selectedLayer && !l.hidden && !lcApplyPreset._busy) {
                     l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h;
                     l.trim = ov.trim || lcMakeTrim();
+                    l.slipX = ov.slipX || 0;
                 }
             } else {
                 // Overlay gone from vMix
