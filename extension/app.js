@@ -778,13 +778,16 @@ function renderMainInterface() {
                 </div>
               </div><!-- /.main-column -->
 
-                <!-- COPY HISTORY (Inputs tab only) -->
-                <div class="copy-history-panel" id="copyHistoryPanel">
-                    <div class="ch-header">
-                        <span style="display:flex;align-items:center;gap:6px;font-weight:bold;font-size:12px;color:#ddd;">${getIcon('list')} Histórico</span>
+                <!-- COPY HISTORY (Inputs tab only, collapsed by default) -->
+                <div class="copy-history-panel collapsed" id="copyHistoryPanel">
+                    <div class="ch-header" id="copyHistoryHeader" title="Clique para expandir/colapsar">
+                        <span class="ch-title">${getIcon('list')} Histórico</span>
                         <button class="ch-clear" id="copyHistoryClear" title="Limpar histórico">${getIcon('trash')}</button>
                     </div>
-                    <div class="ch-list" id="copyHistoryList"></div>
+                    <div class="ch-body">
+                        <div class="ch-note">⚠ Em avaliação — se não for útil, será removido em releases futuras</div>
+                        <div class="ch-list" id="copyHistoryList"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1017,7 +1020,14 @@ function setupGlobalEvents() {
     document.getElementById('lcAnchorCenter')?.addEventListener('click', () => lcAnchorResetSelected());
 
     // --- Copy history: clear button + initial render ---
-    document.getElementById('copyHistoryClear')?.addEventListener('click', clearCopyHistory);
+    document.getElementById('copyHistoryClear')?.addEventListener('click', e => {
+        e.stopPropagation(); // não dispara toggle do header
+        clearCopyHistory();
+    });
+    // Header alterna collapsed/expanded. Colapsado por padrão (ver HTML).
+    document.getElementById('copyHistoryHeader')?.addEventListener('click', () => {
+        document.getElementById('copyHistoryPanel')?.classList.toggle('collapsed');
+    });
     renderCopyHistory();
 
     // --- Layer Control preset buttons ---

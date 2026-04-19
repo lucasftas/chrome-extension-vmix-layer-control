@@ -1,5 +1,12 @@
 # Operations Log
 
+## 2026-04-19 (v4.1.8)
+- [x] Painel Histórico colapsado por padrão (classe `.collapsed` no HTML)
+- [x] Header clicável alterna estado; clear button com `stopPropagation` pra não acionar toggle
+- [x] Nota "⚠ Em avaliação — pode ser removido" visível quando expandido
+- [x] CSS colapsado: 36px largura, título rotacionado com `writing-mode: vertical-rl`
+- [x] Release v4.1.8 publicada
+
 ## 2026-04-19 (v4.1.7)
 - [x] Removidas as chamadas `lcThrottleSend` durante mousemove no Multilayer (ramos `free` e `snap`)
 - [x] Mouseup continua enviando `lcSendToVMix` (já despachava antes) — nenhum envio perdido

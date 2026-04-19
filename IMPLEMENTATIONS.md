@@ -1,5 +1,15 @@
 # Implementations
 
+## v4.1.8 — 2026-04-19
+
+### UX: Histórico colapsado + marcação de avaliação
+
+O painel `#copyHistoryPanel` na aba Inputs passou a ser colapsável. Classe `.collapsed` aplicada no HTML por padrão — transforma o painel em faixa vertical de 36px com o título rotacionado 90° (writing-mode: vertical-rl + transform: rotate(180deg)). Click no `.ch-header` alterna o estado. Body + botão clear só aparecem expandido.
+
+Dentro do body expandido, inserida `.ch-note` (faixa amarela estilo warning) com o texto "Em avaliação — se não for útil, será removido em releases futuras". Marca o feature como candidato a remoção se o telemetria/feedback indicar que é pouco usado.
+
+Não há persistência de estado — sempre volta ao colapsado em cada reload. Decisão deliberada: usuário médio não precisa do histórico, quem precisa abre on-demand.
+
 ## v4.1.7 — 2026-04-19
 
 ### UX: Multilayer dispatch no release (consistência com Anchor)
