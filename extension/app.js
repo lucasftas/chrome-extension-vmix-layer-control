@@ -1789,26 +1789,31 @@ function switchPanelTab(tab) {
     STATE.activeTab = tab;
     const tabDeck = document.getElementById('tabDeck');
     const tabLayers = document.getElementById('tabLayers');
+    const tabAnchor = document.getElementById('tabAnchor');
     const layerContent = document.getElementById('layerContent');
+    const anchorContent = document.getElementById('anchorContent');
     if (!tabDeck) return;
     tabDeck.classList.toggle('active', tab === 'deck');
     tabLayers.classList.toggle('active', tab === 'layers');
+    tabAnchor?.classList.toggle('active', tab === 'anchor');
     layerContent?.classList.toggle('hidden', tab !== 'layers');
+    anchorContent?.classList.toggle('hidden', tab !== 'anchor');
 
     // Classe no content-area controla o layout:
     //   .mode-inputs: deck-panel colapsa só às tabs, inputs-panel preenche abaixo, histórico à direita
-    //   .mode-layers: deck-panel ocupa o topo com layer-content, inputs-panel embaixo, sem histórico
+    //   .mode-layers / .mode-anchor: deck-panel ocupa o topo com layer/anchor-content, inputs-panel embaixo
     const contentArea = document.querySelector('.content-area');
     if (contentArea) {
         contentArea.classList.toggle('mode-inputs', tab === 'deck');
         contentArea.classList.toggle('mode-layers', tab === 'layers');
+        contentArea.classList.toggle('mode-anchor', tab === 'anchor');
     }
 
     // Copy History visível apenas no modo Inputs
     const historyPanel = document.getElementById('copyHistoryPanel');
     if (historyPanel) historyPanel.classList.toggle('hidden', tab !== 'deck');
 
-    // Theme switching
+    // Theme switching (deck=roxo; layers e anchor usam tema laranja)
     const root = document.getElementById('app-root');
     if (root) root.className = tab === 'deck' ? 'theme-deck' : 'theme-layers';
 
@@ -1824,6 +1829,14 @@ function switchPanelTab(tab) {
         }
         lcStartSync();
         lcStartResizeObserver();
+    } else if (tab === 'anchor') {
+        if (!STATE.layerControl.targetInputKey) {
+            lcAnchorShowWelcome();
+        } else {
+            lcFetchInputLayers().then(() => lcAnchorRender());
+        }
+        lcStartSync();
+        lcAnchorStartResizeObserver();
     } else {
         lcStopSync();
     }
