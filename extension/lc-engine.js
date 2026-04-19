@@ -694,8 +694,8 @@ function lcRenderCanvas() {
 }
 
 // Update visual state of layer list rows without rebuilding DOM
-function lcUpdateRowVisuals() {
-    const container = document.getElementById('layerList');
+function lcUpdateRowVisuals(containerId = 'layerList') {
+    const container = document.getElementById(containerId);
     if (!container) return;
     const lc = STATE.layerControl;
     const rows = container.querySelectorAll('.lc-layer-row');
@@ -858,8 +858,8 @@ function _lcRenderBoxes(canvas, lc, cW, cH) {
 // LAYER LIST (10-row panel with dropdowns)
 // =============================================
 
-function lcRenderLayerList() {
-    const container = document.getElementById('layerList');
+function lcRenderLayerList(containerId = 'layerList') {
+    const container = document.getElementById(containerId);
     if (!container) return;
     const lc = STATE.layerControl;
     const inst = getActiveInstance();
@@ -1127,6 +1127,208 @@ function _lcAnchorBuildGridLabels() {
     }
     _lcAnchorGridLabels = out;
     return out;
+}
+
+// Fit do canvas anchor mantendo 16:9 (mesma lógica de lcFitCanvas).
+function lcAnchorFitCanvas() {
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    const canvas = document.getElementById('anchorCanvas');
+    if (!wrapper || !canvas) return;
+    const wW = wrapper.clientWidth;
+    const wH = wrapper.clientHeight;
+    if (!wW || !wH) return;
+    const availW = wW - LC_CANVAS_MARGIN * 2;
+    const availH = wH - LC_CANVAS_MARGIN * 2;
+    let cW, cH;
+    if (availW / availH > 16 / 9) {
+        cH = availH; cW = cH * 16 / 9;
+    } else {
+        cW = availW; cH = cW * 9 / 16;
+    }
+    cW = Math.max(1, Math.round(cW));
+    cH = Math.max(1, Math.round(cH));
+    canvas.style.width = cW + 'px';
+    canvas.style.height = cH + 'px';
+    canvas.style.left = Math.round((wW - cW) / 2) + 'px';
+    canvas.style.top = Math.round((wH - cH) / 2) + 'px';
+    return { cW, cH };
+}
+
+// ResizeObserver específico do wrapper anchor.
+let _lcAnchorResizeObserver = null;
+function lcAnchorStartResizeObserver() {
+    if (_lcAnchorResizeObserver) return;
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    if (!wrapper) return;
+    _lcAnchorResizeObserver = new ResizeObserver(() => {
+        if (STATE.activeTab === 'anchor') lcAnchorRenderCanvas();
+    });
+    _lcAnchorResizeObserver.observe(wrapper);
+}
+
+// Welcome quando não há input-alvo selecionado.
+function lcAnchorShowWelcome() {
+    const canvas = document.getElementById('anchorCanvas');
+    if (!canvas) return;
+    lcAnchorFitCanvas();
+    canvas.innerHTML = `<div class="lc-welcome">
+        <div class="lc-welcome-icon">${getIcon('anchor')}</div>
+        <div class="lc-welcome-title">Anchor Slip X</div>
+        <div class="lc-welcome-sub">Selecione um input abaixo para começar a deslizar a âncora</div>
+    </div>`;
+}
+
+// Render completo do Anchor (canvas + lista lateral).
+function lcAnchorRender() {
+    lcAnchorRenderCanvas();
+    lcRenderLayerList('anchorLayerList');
+}
+
+// Render do canvas anchor: layer-boxes com textura por hue, ghost, handles.
+function lcAnchorRenderCanvas() {
+    const canvas = document.getElementById('anchorCanvas');
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    if (!canvas || !wrapper) return;
+    const fit = lcAnchorFitCanvas();
+    if (!fit) return;
+    const { cW, cH } = fit;
+
+    // Limpa canvas e overlays antigos (ghost + handles ficam no wrapper fora do canvas)
+    canvas.innerHTML = '';
+    wrapper.querySelectorAll('.ghost-texture, .transform-handles').forEach(n => n.remove());
+
+    const lc = STATE.layerControl;
+    lc.layers.forEach((l, i) => {
+        if (l.hidden || !l.inputKey) return;
+
+        const Z = Math.max(l.w, l.h);
+        const baseCropX = lcAnchorBaseCropX(l);
+
+        const box = document.createElement('div');
+        box.className = 'anchor-layer-box' + (i === lc.selectedLayer ? ' selected' : '');
+        box.dataset.i = i;
+        box.style.left = (l.x * 100) + '%';
+        box.style.top = (l.y * 100) + '%';
+        box.style.width = (l.w * 100) + '%';
+        box.style.height = (l.h * 100) + '%';
+
+        // SVG de textura com hue da layer, deslocada conforme slipX
+        const svgWrap = document.createElement('div');
+        svgWrap.className = 'anchor-layer-svg';
+        svgWrap.innerHTML = lcAnchorBuildTextureSVG(LAYER_HUES[l.index] ?? 0);
+        const textureW = Z * cW;
+        const textureH = l.h * cH;
+        const svgLeftInLayer = -(1 + (l.slipX || 0)) * baseCropX * cW;
+        svgWrap.style.left = svgLeftInLayer + 'px';
+        svgWrap.style.width = textureW + 'px';
+        svgWrap.style.height = textureH + 'px';
+        const svgEl = svgWrap.querySelector('svg');
+        if (svgEl) { svgEl.setAttribute('width', textureW); svgEl.setAttribute('height', textureH); }
+        box.appendChild(svgWrap);
+
+        // Linha-guia vertical central (referência do "zero" do slip)
+        const guide = document.createElement('div');
+        guide.className = 'anchor-center-guide';
+        guide.style.left = '50%';
+        box.appendChild(guide);
+
+        // Label flutuante
+        const tag = document.createElement('div');
+        tag.className = 'anchor-layer-tag';
+        tag.textContent = `L${l.index + 1} · ${l.inputTitle || '—'}`;
+        box.appendChild(tag);
+
+        // Interação: click seleciona, mousedown inicia drag, dblclick reseta
+        box.addEventListener('mousedown', e => lcAnchorStartDrag(e, i));
+        box.addEventListener('click', e => {
+            if (!_lcDrag) { lc.selectedLayer = i; lcAnchorRender(); }
+        });
+        box.addEventListener('dblclick', e => {
+            e.preventDefault(); e.stopPropagation();
+            lcAnchorReset(i);
+        });
+
+        // Drop de input no canvas — reusa lógica de lcAssignLayerInput
+        lcSetupDropTarget(box, e => {
+            try {
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data && data.key) {
+                    l.inputKey = data.key;
+                    l.inputTitle = data.shortTitle || data.title || '';
+                    l.hidden = false; l._knownState = true; l._checkOff = false;
+                    lc.selectedLayer = i;
+                    lcAssignLayerInput(l.index, data.key);
+                    lcAnchorRender();
+                    lcSendToVMix(l);
+                }
+            } catch { }
+        });
+
+        canvas.appendChild(box);
+    });
+
+    // Ghost texture + Transform Handles SÓ pra layer selecionada
+    const sel = lc.layers[lc.selectedLayer];
+    if (sel && !sel.hidden && sel.inputKey) lcAnchorRenderOverlay(sel, cW, cH);
+}
+
+// Renderiza a textura ghost (fora do canvas) + Transform Handles da layer selecionada.
+function lcAnchorRenderOverlay(l, cW, cH) {
+    const canvas = document.getElementById('anchorCanvas');
+    const wrapper = document.querySelector('.anchor-canvas-wrapper');
+    if (!canvas || !wrapper) return;
+    const Z = Math.max(l.w, l.h);
+    const baseCropX = lcAnchorBaseCropX(l);
+
+    // Posição do canvas dentro do wrapper (precisamos das coords absolutas do wrapper)
+    const cRect = canvas.getBoundingClientRect();
+    const wRect = wrapper.getBoundingClientRect();
+    const cLeft = cRect.left - wRect.left;
+    const cTop = cRect.top - wRect.top;
+
+    // Ghost: textura completa (Z em unidades normalizadas), deslocada por slipX
+    //   textureLeftNorm = l.x - (Z - w)/2 - slipX * baseCropX
+    const textureLeftNorm = l.x - (Z - l.w) / 2 - (l.slipX || 0) * baseCropX;
+    const ghost = document.createElement('div');
+    ghost.className = 'ghost-texture';
+    ghost.style.left = (cLeft + textureLeftNorm * cW) + 'px';
+    ghost.style.top = (cTop + l.y * cH) + 'px';
+    ghost.style.width = (Z * cW) + 'px';
+    ghost.style.height = (l.h * cH) + 'px';
+    ghost.innerHTML = lcAnchorBuildTextureSVG(LAYER_HUES[l.index] ?? 0);
+    const ghostSvg = ghost.querySelector('svg');
+    if (ghostSvg) { ghostSvg.setAttribute('width', Z * cW); ghostSvg.setAttribute('height', l.h * cH); }
+    const glabel = document.createElement('span');
+    glabel.className = 'ghost-label';
+    glabel.textContent = `TEXTURA · ${l.inputTitle || 'layer ' + (l.index + 1)}`;
+    ghost.appendChild(glabel);
+    wrapper.appendChild(ghost);
+
+    // Transform Handles sobre o crop visível (= tamanho da layer)
+    const handles = document.createElement('div');
+    handles.className = 'transform-handles';
+    handles.style.left = (cLeft + l.x * cW) + 'px';
+    handles.style.top = (cTop + l.y * cH) + 'px';
+    handles.style.width = (l.w * cW) + 'px';
+    handles.style.height = (l.h * cH) + 'px';
+
+    const absSlip = Math.abs(l.slipX || 0);
+    if (absSlip > LC_ANCHOR_AT_EDGE) handles.classList.add('at-edge');
+    else if (absSlip > LC_ANCHOR_NEAR_EDGE) handles.classList.add('near-edge');
+
+    ['nw','n','ne','e','se','s','sw','w'].forEach(pos => {
+        const h = document.createElement('div');
+        h.className = 'handle h-' + pos;
+        handles.appendChild(h);
+    });
+
+    const hint = document.createElement('div');
+    hint.className = 'hint-text';
+    const sx = l.slipX || 0;
+    hint.textContent = `slipX ${sx >= 0 ? '+' : ''}${sx.toFixed(3)}${absSlip > LC_ANCHOR_AT_EDGE ? ' · LIMITE!' : ''}`;
+    handles.appendChild(hint);
+
+    wrapper.appendChild(handles);
 }
 
 // Gera SVG de textura de referência (1920×1080) tingido pelo hue da layer.
