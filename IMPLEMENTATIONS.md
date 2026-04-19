@@ -1,5 +1,31 @@
 # Implementations
 
+## v4.1.9 — 2026-04-19 · Release estável final
+
+Consolida o ciclo v4.1.4–v4.1.9 numa versão de produção. Três eixos de mudança:
+
+### 1. Matemática do Anchor Slip X (fix fundamental)
+
+Descoberto via teste direto na API do vMix (preset 50/50 no Input 1, animação ao vivo com `slipX` em sweep -1 ↔ +1): deslocar apenas `cropX1`/`cropX2` em paralelo **não** mantém a layer fixa no canvas — ela avança sobre a vizinha, pois a bounding box visível vai de `panX_px + cropX1·bbox_w` até `panX_px + cropX2·bbox_w`. Adicionar `slipOffsetX` aos dois crops sobe ambos em `slipOffsetX·bbox_w`. Compensação correta: `panX` precisa deslizar `−2·slipOffsetX` em espaço normalizado.
+
+### 2. Consistência inter-abas
+
+- Sincronização de `targetInputKey` ao trocar aba (one-way mirror), com reset de `_posSet` pra forçar pull fresh.
+- Dispatch unificado: Multilayer agora envia só no `mouseup`, igual Anchor desde sempre.
+- Badge `SLIP` + tarja de warning avisam que o preset do Multilayer zera slip aplicado no Anchor.
+
+### 3. UX da aba Inputs
+
+- Modo Grupos (Explorer-style): headers coloridos com cor do tipo (bg-Video, bg-Image, etc.), colapsáveis, ordem prioritária Capture → Cor → Mic/Line → Vídeo.
+- Histórico colapsado por padrão com ícone TimeMachine — feature em avaliação.
+- Toggle de modo visível, com label textual ("Lista"/"Grupos").
+
+### Arquivos tocados
+
+- [extension/lc-engine.js](extension/lc-engine.js) — `lcToVMix`, `lcFromVMix`, `_lcMakeSlipBadge`, `lcUpdateSlipWarning`, drop do `lcThrottleSend` no mousemove
+- [extension/app.js](extension/app.js) — `_buildInputCard`, `renderInputs` com modo grouped, priority list, sync cruzada em `switchPanelTab`, HTML do histórico colapsável + toggle de view mode
+- [extension/style.css](extension/style.css) — `.inputs-group-header` coloridos, `.view-mode-toggle`, `.lc-slip-badge`, `.lc-slip-warning`, `.copy-history-panel.collapsed`
+
 ## v4.1.8 — 2026-04-19
 
 ### UX: Histórico colapsado + marcação de avaliação

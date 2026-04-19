@@ -44,6 +44,8 @@ const STATE = {
     instances: [],
     activeId: null,
     filter: 'All',
+    inputsViewMode: 'flat', // 'flat' | 'grouped' — grouped mostra headers por tipo (Explorer-style)
+    collapsedGroups: {},    // { [displayType]: true } — persistido só em memória
     autoRefreshSecs: 0,
     _refreshTimer: null,
     _searchDebounce: null,
@@ -770,22 +772,29 @@ function renderMainInterface() {
                 <div class="inputs-panel">
                     <div class="inputs-info-bar" id="inputsInfoBar"><span>Selecione uma instância</span></div>
                     <div class="inputs-toolbar">
-                        <span style="display:flex;align-items:center;gap:6px;font-weight:bold;font-size:12px;color:#ddd;">${getIcon('layers')} Inputs</span>
+                        <span style="display:flex;align-items:center;gap:6px;font-weight:bold;font-size:12px;color:#374151;">${getIcon('layers')} Inputs</span>
                         <input type="text" id="searchInput" placeholder="Filtrar por nome..." class="search-input">
+                        <button class="view-mode-toggle" id="viewModeToggle" title="Alternar visualização: Lista (flat) ↔ Grupos (por tipo)" data-mode="flat">
+                            <svg class="vm-icon vm-icon-flat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                            <svg class="vm-icon vm-icon-grouped" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h12"/><path d="M3 18h18"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg>
+                            <span class="vm-label vm-label-flat">Lista</span>
+                            <span class="vm-label vm-label-grouped">Grupos</span>
+                        </button>
                     </div>
                     <div class="filters-bar" id="filters-container"></div>
                     <div class="inputs-grid-container"><div class="inputs-grid" id="inputs-grid"></div></div>
                 </div>
               </div><!-- /.main-column -->
 
-                <!-- COPY HISTORY (Inputs tab only, collapsed by default) -->
+                <!-- COPY HISTORY (Inputs tab only, collapsed by default).
+                     EM AVALIAÇÃO — candidato a remoção em releases futuras
+                     caso uso real mostre que não agrega valor. -->
                 <div class="copy-history-panel collapsed" id="copyHistoryPanel">
                     <div class="ch-header" id="copyHistoryHeader" title="Clique para expandir/colapsar">
-                        <span class="ch-title">${getIcon('list')} Histórico</span>
+                        <span class="ch-title"><svg class="ch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/><polyline points="12 7 12 12 15 14"/></svg><span class="ch-title-text">Histórico</span></span>
                         <button class="ch-clear" id="copyHistoryClear" title="Limpar histórico">${getIcon('trash')}</button>
                     </div>
                     <div class="ch-body">
-                        <div class="ch-note">⚠ Em avaliação — se não for útil, será removido em releases futuras</div>
                         <div class="ch-list" id="copyHistoryList"></div>
                     </div>
                 </div>
@@ -855,6 +864,51 @@ function renderAll() {
     updateHeaderInfo();
 }
 
+// Monta um card de input (usado por ambos os modos de visualização).
+function _buildInputCard(input) {
+    const style = getInputStyle(input.rawType, input.isFile);
+    const card = document.createElement('div');
+    card.draggable = true;
+    card.className = `input-card ${style.bgClass}`;
+    card.title = `${input.title}\nGUID: ${input.key}`;
+    card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', JSON.stringify(input)); card.style.opacity = '0.5'; });
+    card.addEventListener('dragend', () => card.style.opacity = '1');
+    card.addEventListener('contextmenu', e => { e.preventDefault(); copyData(input, card); });
+    card.addEventListener('click', () => {
+        if (STATE.activeTab === 'layers') {
+            STATE.layerControl.targetInputKey = input.key;
+            STATE.layerControl.targetInputTitle = input.shortTitle || input.title;
+            document.getElementById('lcTargetLabel').textContent = `#${input.number} ${input.shortTitle || input.title}`;
+            STATE.layerControl.layers.forEach(l => { l._posSet = false; });
+            lcFetchInputLayers().then(() => lcRender());
+            renderInputs();
+        } else if (STATE.activeTab === 'anchor') {
+            STATE.anchorControl.targetInputKey = input.key;
+            STATE.anchorControl.targetInputTitle = input.shortTitle || input.title;
+            const lbl = document.getElementById('lcAnchorTargetLabel');
+            if (lbl) lbl.textContent = `#${input.number} ${input.shortTitle || input.title}`;
+            STATE.anchorControl.layers.forEach(l => { l._posSet = false; });
+            lcAnchorFetchInputLayers().then(() => lcAnchorRender());
+            lcAnchorStartSync();
+            renderInputs();
+        } else {
+            copyData(input, card);
+        }
+    });
+    if (STATE.activeTab === 'layers' && input.key === STATE.layerControl.targetInputKey) card.classList.add('lc-active');
+    else if (STATE.activeTab === 'anchor' && input.key === STATE.anchorControl.targetInputKey) card.classList.add('lc-active');
+    card.innerHTML = `
+        <div class="card-num">${input.number}</div>
+        <div class="card-type">${input.displayType}</div>
+        <div class="card-icon">
+            <div style="width:24px;height:24px;">${getIcon(style.icon)}</div>
+            ${input.meta ? `<div class="card-meta">${input.meta}</div>` : ''}
+            ${input.extension ? `<div class="card-ext">${input.extension}</div>` : ''}
+        </div>
+        <div class="card-title">${input.shortTitle}</div>`;
+    return card;
+}
+
 function renderInputs() {
     const grid = document.getElementById('inputs-grid');
     if (!grid) return;
@@ -871,61 +925,50 @@ function renderInputs() {
         grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">${msg}</div>`;
         return;
     }
-    filtered.forEach(input => {
-        const style = getInputStyle(input.rawType, input.isFile);
-        const card = document.createElement('div');
-        card.draggable = true;
-        card.className = `input-card ${style.bgClass}`;
-        card.title = `${input.title}\nGUID: ${input.key}`;
-        card.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', JSON.stringify(input)); card.style.opacity = '0.5'; });
-        card.addEventListener('dragend', () => card.style.opacity = '1');
-        // Right-click also copies according to the current mode toggle
-        card.addEventListener('contextmenu', e => {
-            e.preventDefault();
-            copyData(input, card);
+    // Reflete viewMode no grid container (CSS ajusta layout grouped/flat)
+    grid.dataset.viewMode = STATE.inputsViewMode;
+
+    if (STATE.inputsViewMode === 'grouped') {
+        // Agrupa por displayType. Ordem: prioridade (Capture, Cor, Mic/Line,
+        // Vídeo) → resto na ordem natural de aparição nos inputs.
+        const GROUP_PRIORITY = ['Capture', 'Cor', 'Mic/Line', 'Vídeo'];
+        const groups = new Map();
+        filtered.forEach(i => {
+            const t = i.displayType || 'Other';
+            if (!groups.has(t)) groups.set(t, []);
+            groups.get(t).push(i);
         });
-        // Left-click por aba:
-        //   Deck/Inputs  → copia GUID
-        //   Multilayer   → define como target input (layerControl)
-        //   Anchor Slip  → define como target input (anchorControl, independente)
-        card.addEventListener('click', () => {
-            if (STATE.activeTab === 'layers') {
-                STATE.layerControl.targetInputKey = input.key;
-                STATE.layerControl.targetInputTitle = input.shortTitle || input.title;
-                document.getElementById('lcTargetLabel').textContent = `#${input.number} ${input.shortTitle || input.title}`;
-                STATE.layerControl.layers.forEach(l => { l._posSet = false; });
-                lcFetchInputLayers().then(() => lcRender());
+        const orderedKeys = [
+            ...GROUP_PRIORITY.filter(k => groups.has(k)),
+            ...Array.from(groups.keys()).filter(k => !GROUP_PRIORITY.includes(k))
+        ];
+        orderedKeys.forEach(type => {
+            const items = groups.get(type);
+            const isCollapsed = !!STATE.collapsedGroups[type];
+            // Herda a mesma classe de cor do tipo dos cards (bg-Video, bg-Image, etc.)
+            const styleCls = getInputStyle(items[0].rawType, items[0].isFile).bgClass;
+            const groupEl = document.createElement('div');
+            groupEl.className = 'inputs-group' + (isCollapsed ? ' collapsed' : '');
+            const header = document.createElement('div');
+            header.className = `inputs-group-header ${styleCls}`;
+            header.innerHTML = `
+                <svg class="group-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+                <span class="group-label">${type}</span>
+                <span class="group-count">${items.length}</span>`;
+            header.addEventListener('click', () => {
+                STATE.collapsedGroups[type] = !STATE.collapsedGroups[type];
                 renderInputs();
-            } else if (STATE.activeTab === 'anchor') {
-                STATE.anchorControl.targetInputKey = input.key;
-                STATE.anchorControl.targetInputTitle = input.shortTitle || input.title;
-                const lbl = document.getElementById('lcAnchorTargetLabel');
-                if (lbl) lbl.textContent = `#${input.number} ${input.shortTitle || input.title}`;
-                STATE.anchorControl.layers.forEach(l => { l._posSet = false; });
-                lcAnchorFetchInputLayers().then(() => lcAnchorRender());
-                lcAnchorStartSync();
-                renderInputs();
-            } else {
-                copyData(input, card);
-            }
+            });
+            const body = document.createElement('div');
+            body.className = 'inputs-group-body';
+            items.forEach(input => body.appendChild(_buildInputCard(input)));
+            groupEl.appendChild(header);
+            groupEl.appendChild(body);
+            grid.appendChild(groupEl);
         });
-        // Highlight active target input de acordo com a aba
-        if (STATE.activeTab === 'layers' && input.key === STATE.layerControl.targetInputKey) {
-            card.classList.add('lc-active');
-        } else if (STATE.activeTab === 'anchor' && input.key === STATE.anchorControl.targetInputKey) {
-            card.classList.add('lc-active');
-        }
-        card.innerHTML = `
-            <div class="card-num">${input.number}</div>
-            <div class="card-type">${input.displayType}</div>
-            <div class="card-icon">
-                <div style="width:24px;height:24px;">${getIcon(style.icon)}</div>
-                ${input.meta ? `<div class="card-meta">${input.meta}</div>` : ''}
-                ${input.extension ? `<div class="card-ext">${input.extension}</div>` : ''}
-            </div>
-            <div class="card-title">${input.shortTitle}</div>`;
-        grid.appendChild(card);
-    });
+    } else {
+        filtered.forEach(input => grid.appendChild(_buildInputCard(input)));
+    }
 }
 
 function generateFilters() {
@@ -1002,6 +1045,11 @@ function setupGlobalEvents() {
     document.getElementById('searchInput')?.addEventListener('keyup', () => {
         clearTimeout(STATE._searchDebounce);
         STATE._searchDebounce = setTimeout(renderInputs, 200);
+    });
+    document.getElementById('viewModeToggle')?.addEventListener('click', e => {
+        STATE.inputsViewMode = STATE.inputsViewMode === 'flat' ? 'grouped' : 'flat';
+        e.currentTarget.dataset.mode = STATE.inputsViewMode;
+        renderInputs();
     });
     document.getElementById('refreshIntervalSel')?.addEventListener('change', e => {
         STATE.autoRefreshSecs = parseInt(e.target.value);

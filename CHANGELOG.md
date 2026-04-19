@@ -3,6 +3,37 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.9] — 2026-04-19 · Versão estável final
+
+Consolida a série 4.1.4 → 4.1.9 numa release de produção. Foco total em refinamento de UX, consistência entre abas e correção matemática do Anchor Slip X.
+
+### Added
+- **Modo "Grupos" (Explorer-style)** na aba Inputs: toggle `Lista ↔ Grupos` na toolbar. No modo Grupos, inputs ficam agrupados por `displayType` com header colapsável colorido na cor do tipo (mesmo padrão dos cards).
+- Ordenação de grupos com prioridade: **Capture → Cor → Mic/Line → Vídeo → resto** (ordem natural).
+- Header de grupo colapsável individualmente (state em memória `STATE.collapsedGroups`).
+- Toggle com label dinâmico ("Lista" ou "Grupos") ao lado do ícone SVG.
+- Helper `_buildInputCard(input)` para evitar duplicação entre os dois modos.
+
+### Changed
+- Painel Histórico (aba Inputs) agora inicia **colapsado por padrão** — faixa vertical de 36px com ícone estilo TimeMachine (relógio + seta circular). Click no header expande/colapsa. Marcado internamente como candidato a remoção em releases futuras.
+- Cor da `.inputs-toolbar` unificada com headers de grupo (`#e5e7eb`).
+- Labels com cor clara (`#ddd`) em fundo claro substituídos por `#374151` (contraste adequado).
+
+### Fixed
+- **Anchor Slip X agora preserva a posição da layer** no canvas do vMix (efeito máscara real). `lcToVMix` compensa `panX = panX_base − 2·slipOffsetX`; `lcFromVMix` reverte via `cx = (panX + 1)/2 + slipOffsetX`. Validado ao vivo via API com sweep de `slipX = -1..+1`.
+- Round-trip matemático: `slipX=+0.5` → `panX=-0.75, cropX 0.375..0.875` → volta pra `x=0, w=0.5, slipX=0.5` (6 casas de precisão).
+
+### UX
+- **Badge `SLIP`** (chip verde) na row da layer quando `|slipX| > 0.001` — visível em ambas as abas com tooltip do valor.
+- **Tarja de warning** amarela no Multilayer quando o target tem slip ativo: `N layer(s) com anchor deslocado (L1, L3, ...) — aplicar preset vai centralizar`.
+- **Sincronização de target entre abas**: ao trocar entre Multilayer e Anchor, o `targetInputKey` é espelhado; `_posSet` é resetado pra forçar pull fresh do vMix (mudanças feitas na aba anterior aparecem imediatamente).
+- **Dispatch consistente**: Multilayer agora envia ao vMix **apenas no `mouseup`**, igual Anchor Slip X. Drag local segue a 30fps; os 7 comandos `SetLayer{N}*` saem uma única vez no release.
+
+### Validated
+- Testes via API HTTP direto no vMix 29 (localhost:8088, Input 1 "TESTE MULTLAYER") com animação sweep `slipX = -1 ↔ +1` em ciclo de 4s.
+- Smoke test Node.js de `lcToVMix` / `lcFromVMix` com casos `slipX ∈ {+0.5, -1}`.
+- Sintaxe validada em cada fase (`node -c extension/app.js extension/lc-engine.js`).
+
 ## [4.1.8] — 2026-04-19
 
 ### Changed
