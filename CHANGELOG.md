@@ -3,6 +3,15 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.8] — 2026-04-19
+
+### Changed
+- **Painel Histórico (aba Inputs) colapsado por padrão**: agora abre como faixa vertical estreita (36px) com o título rotacionado. Clique no header alterna entre colapsado/expandido.
+- Adicionada nota `⚠ Em avaliação — se não for útil, será removido em releases futuras` dentro do painel expandido.
+
+### Why
+- Ocupava muito espaço lateral sem uso comprovado. Fica acessível a um clique mas não rouba área da lista de inputs. Marca como candidato a remoção em release futura.
+
 ## [4.1.7] — 2026-04-19
 
 ### Changed
