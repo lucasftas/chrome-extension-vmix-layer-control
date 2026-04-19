@@ -694,6 +694,10 @@ function renderMainInterface() {
                         <button class="deck-tab" id="tabAnchor">${getIcon('anchor')} Anchor Slip X</button>
                     </div>
                     <div class="layer-content hidden" id="layerContent">
+                        <div class="lc-slip-warning hidden" id="lcSlipWarning" title="Este input tem layers com slipX aplicado pela aba Anchor. Aplicar um preset aqui vai centralizar o slip de volta para zero.">
+                            <span class="lc-slip-warning-icon">⚠</span>
+                            <span id="lcSlipWarningText"></span>
+                        </div>
                         <div class="lc-toolbar">
                             <button class="lc-target-btn" id="lcTargetBtn" title="Selecionar input">${getIcon('monitor')} <span id="lcTargetLabel">Selecionar input...</span></button>
                             <div class="lc-toolbar-sep"></div>

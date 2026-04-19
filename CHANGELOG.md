@@ -3,6 +3,17 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.5] — 2026-04-19
+
+### Added
+- **Badge `SLIP`** (chip verde) na row da layer sempre que `slipX ≠ 0`. Aparece em ambas as abas (Multilayer e Anchor), tooltip mostra o valor exato do slip.
+- **Tarja de warning** amarela no topo da aba Multilayer quando o target atual tem layers com slip ativo: `N layer(s) com anchor deslocado (L1, L3, …) — aplicar preset vai centralizar`.
+- `_lcMakeSlipBadge(l)` e `lcUpdateSlipWarning()` em `lc-engine.js`. Warning atualizado em cada `lcRender`.
+
+### Changed
+- `lcRenderLayerList` e `lcAnchorRenderLayerList` agora anexam o badge após o resto da row.
+- HTML do `#layerContent` ganha `<div id="lcSlipWarning">` (hidden por padrão).
+
 ## [4.1.4] — 2026-04-19
 
 ### Fixed

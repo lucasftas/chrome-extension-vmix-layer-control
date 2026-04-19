@@ -1,5 +1,19 @@
 # Implementations
 
+## v4.1.5 — 2026-04-19
+
+### UX: sinalização do slipX entre as abas
+
+O slipX aplicado pela aba Anchor modifica `panX`, `cropX1`, `cropX2` no vMix, mas o preset do Multilayer sobrescreve geometria e zera o slip. Usuário não tinha pista de que ia perder o enquadramento anterior.
+
+Sinalização em duas camadas:
+
+1. **Badge `SLIP`** — chip verde (`#16a34a`) na row da layer em ambas as sidebars. Render dentro de `_lcMakeSlipBadge(l)` chamado em `lcRenderLayerList` e `lcAnchorRenderLayerList`. Threshold `|slipX| > 0.001`.
+
+2. **Tarja de warning** — banner amarelo acima da toolbar do Multilayer, só visível quando `STATE.layerControl.layers` tem pelo menos uma layer com slip ativo. Controlado por `lcUpdateSlipWarning()` (chamado em `lcRender`) que lista os índices afetados e exibe contagem.
+
+Preset continua zerando slip (comportamento determinístico) — o aviso comunica a perda antes do clique.
+
 ## v4.1.4 — 2026-04-19
 
 ### Fix matemático: Anchor Slip X com compensação de panX

@@ -1,5 +1,14 @@
 # Operations Log
 
+## 2026-04-19 (v4.1.5)
+- [x] Decisão UX: badge `SLIP` na sidebar + tarja de warning no Multilayer quando target tem slip (opção 1 do menu oferecido)
+- [x] `_lcMakeSlipBadge(l)` + integração em `lcRenderLayerList` ([extension/lc-engine.js:894](extension/lc-engine.js#L894)) e `lcAnchorRenderLayerList` ([extension/lc-engine.js:1620](extension/lc-engine.js#L1620))
+- [x] `lcUpdateSlipWarning()` chamado dentro de `lcRender`
+- [x] HTML `<div id="lcSlipWarning">` inserido no `#layerContent` acima da primeira toolbar ([extension/app.js:696](extension/app.js#L696))
+- [x] CSS `.lc-slip-badge` (chip verde) + `.lc-slip-warning` (banner amarelo)
+- [x] Sintaxe validada (`node -c`) em app.js + lc-engine.js
+- [x] Release v4.1.5 publicada
+
 ## 2026-04-19 (v4.1.4)
 - [x] Teste direto via API no Input 1 "TESTE MULTLAYER" (vMix localhost:8088) com Input 20 na L1 + CAM 02 na L2
 - [x] Confirmado empiricamente que slip puro (cropX1/X2 em paralelo sem mexer em panX) desloca a bounding box visível (L1 invade L2)
