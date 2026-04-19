@@ -2457,136 +2457,16 @@ body {
     flex-shrink: 0;
 }
 
-.lc-props-toggle {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--text-muted);
-    letter-spacing: 1px;
-    padding: 2px 4px;
-    cursor: pointer;
-    user-select: none;
-    transition: color 0.15s;
-    flex-shrink: 0;
-}
-.lc-props-toggle:hover { color: var(--accent-orange); }
-.lc-props-toggle-arrow {
-    font-size: 8px;
-    transition: transform 0.2s;
-}
 
 /* =============================================
    Properties Panel
    ============================================= */
-.lc-props-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    overflow-y: hidden;
-    flex-shrink: 0;
-    transition: max-height 0.2s ease, opacity 0.2s ease;
-}
-.lc-props-panel.collapsed {
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    gap: 0;
-}
 
-.lc-props-header {
-    padding: 0 2px;
-}
 
-.lc-props-select {
-    width: 100%;
-    padding: 4px 6px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #fff;
-    color: var(--text);
-    cursor: pointer;
-    outline: none;
-}
-.lc-props-select:focus { border-color: var(--accent-orange); }
 
-.lc-props-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 2px;
-}
 
-.lc-props-row {
-    display: grid;
-    grid-template-columns: 52px 1fr 24px 24px;
-    gap: 3px;
-    align-items: center;
-    height: 26px;
-}
 
-.lc-props-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-muted);
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-}
-
-.lc-props-input {
-    width: 100%;
-    padding: 3px 5px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 11px;
-    font-family: monospace;
-    background: #fff;
-    color: var(--text);
-    outline: none;
-    -moz-appearance: textfield;
-}
 .lc-props-input::-webkit-inner-spin-button,
-.lc-props-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.lc-props-input:focus { border-color: var(--accent-orange); }
-.lc-props-input[readonly] { background: #f5f5f5; color: #999; cursor: default; }
-
-.lc-props-lock {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f0f0f0;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    padding: 0;
-    transition: all 0.15s;
-}
-.lc-props-lock:hover { background: #e0e0e0; }
-.lc-props-lock.unlocked { background: #fff3e0; border-color: #e86c00; }
-.lc-props-lock.unlocked:hover { background: #ffe0b2; }
-
-.lc-props-reset {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f0f0f0;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0;
-    transition: all 0.15s;
-}
-.lc-props-reset:hover { background: #e0e0e0; }
-.lc-props-reset.hidden { visibility: hidden; }
 
 /* =============================================
    Gap Slider (toolbar)
