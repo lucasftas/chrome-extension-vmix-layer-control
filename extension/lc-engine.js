@@ -177,7 +177,8 @@ function lcRestoreSnapshot(entry) {
         l.hidden = s.hidden; l._knownState = s._knownState; l._checkOff = s._checkOff;
         l._posSet = true;
     });
-    lcRender();
+    if (STATE.activeTab === 'anchor') lcAnchorRender();
+    else lcRender();
     // Send to vMix
     const base = lcVMixBase();
     if (!base) return;
@@ -660,7 +661,7 @@ function lcStartResizeObserver() {
 
 // Keyboard shortcuts for undo/redo
 document.addEventListener('keydown', e => {
-    if (STATE.activeTab !== 'layers') return;
+    if (STATE.activeTab !== 'layers' && STATE.activeTab !== 'anchor') return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); lcUndo(); }
     if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); lcRedo(); }
@@ -1006,6 +1007,46 @@ function lcRenderLayerList(containerId = 'layerList') {
 document.addEventListener('mousemove', e => {
     if (!_lcDrag) return;
     const lc = STATE.layerControl;
+
+    // Anchor Slip X: drag horizontal, atualiza slipX com snap no centro.
+    // Não usa rect/cW/cH do canvas multilayer; trabalha em pixels absolutos.
+    if (_lcDrag.type === 'anchor') {
+        const l = lc.layers[_lcDrag.i];
+        if (!l) return;
+        const dx = e.clientX - _lcDrag.startClientX;
+        const delta = (dx / _lcDrag.boxWpx) * 2;
+        let newSlip = _lcDrag.startSlip + delta;
+        newSlip = Math.max(-1, Math.min(1, newSlip));
+
+        const wasSnapped = _lcDrag.justSnapped === true;
+        let snappedNow = false;
+        if (Math.abs(newSlip) < LC_ANCHOR_SNAP_THRESHOLD) {
+            newSlip = 0;
+            if (!wasSnapped) snappedNow = true;
+        }
+        _lcDrag.justSnapped = Math.abs(newSlip) < 0.0001;
+        l.slipX = newSlip;
+
+        // Info ao vivo na toolbar
+        const info = document.getElementById('lcAnchorInfo');
+        if (info) {
+            const atLim = Math.abs(newSlip) > LC_ANCHOR_AT_EDGE;
+            const tag = newSlip === 0
+                ? '<span style="color:#22c55e;font-weight:bold;">· colado no centro</span>'
+                : (atLim ? '· <span style="color:var(--danger,#ef4444);">no limite!</span>' : '');
+            info.innerHTML = `Layer <strong>${l.index + 1}</strong> · slipX <strong>${newSlip >= 0 ? '+' : ''}${newSlip.toFixed(3)}</strong> ${tag}`;
+        }
+
+        lcAnchorRender();
+
+        // Flash verde no momento do snap
+        if (snappedNow) {
+            const h = document.querySelector('.anchor-canvas-wrapper .transform-handles');
+            if (h) { h.classList.add('snapped'); setTimeout(() => h.classList.remove('snapped'), 400); }
+        }
+        return;
+    }
+
     const { rect, cW, cH } = _lcDrag;
     const mx = lcClamp((e.clientX - rect.left) / cW, 0, 1);
     const my = lcClamp((e.clientY - rect.top) / cH, 0, 1);
@@ -1077,7 +1118,19 @@ document.addEventListener('mouseup', () => {
     if (!_lcDrag) return;
     const lc = STATE.layerControl;
     const type = _lcDrag.type, idx = _lcDrag.i;
+    const startSlip = _lcDrag.startSlip;
     _lcDrag = null;
+
+    if (type === 'anchor') {
+        const l = lc.layers[idx];
+        if (l && Math.abs((l.slipX || 0) - (startSlip || 0)) > 0.001) {
+            lcPushUndo('Anchor Slip X');
+            lcSendToVMix(l);
+        }
+        lcAnchorRender();
+        return;
+    }
+
     lcPushUndo(type === 'snap' ? 'Resize layer' : 'Mover layer');
     lcRender();
     if (type === 'snap') lc.layers.forEach(l => { if (!l.hidden && l.inputKey) lcSendToVMix(l); });
@@ -1127,6 +1180,45 @@ function _lcAnchorBuildGridLabels() {
     }
     _lcAnchorGridLabels = out;
     return out;
+}
+
+// Inicia drag horizontal numa layer-box do anchor. Seta _lcDrag com type='anchor'.
+// mousemove/mouseup globais (acima) processam o tipo.
+function lcAnchorStartDrag(e, i) {
+    e.preventDefault(); e.stopPropagation();
+    const lc = STATE.layerControl;
+    const l = lc.layers[i];
+    if (!l || !l.inputKey) return;
+    lc.selectedLayer = i;
+    const boxEl = e.currentTarget;
+    _lcDrag = {
+        type: 'anchor',
+        i,
+        startClientX: e.clientX,
+        startSlip: l.slipX || 0,
+        boxWpx: boxEl.offsetWidth || 1,
+        justSnapped: false
+    };
+    lcAnchorRender();
+}
+
+// Reset de slipX em uma layer (via dblclick).
+function lcAnchorReset(i) {
+    const lc = STATE.layerControl;
+    const l = lc.layers[i];
+    if (!l || l.hidden || !l.inputKey) return;
+    if (Math.abs(l.slipX || 0) < 0.001) return;
+    lcPushUndo('Reset Anchor Slip X');
+    l.slipX = 0;
+    lcAnchorRender();
+    lcSendToVMix(l);
+    showToast(`Layer ${l.index + 1}: âncora centralizada`);
+}
+
+// Reset da layer selecionada (via botão "Centralizar" na toolbar).
+function lcAnchorResetSelected() {
+    const lc = STATE.layerControl;
+    lcAnchorReset(lc.selectedLayer);
 }
 
 // Fit do canvas anchor mantendo 16:9 (mesma lógica de lcFitCanvas).
