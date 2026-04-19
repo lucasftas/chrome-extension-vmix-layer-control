@@ -1,8 +1,8 @@
 # Implementations
 
-## v4.1.9 — 2026-04-19 · Release estável final
+## v4.2.0 — 2026-04-19 · Release estável final
 
-Consolida o ciclo v4.1.4–v4.1.9 numa versão de produção. Três eixos de mudança:
+Consolida o ciclo v4.1.4–v4.2.0 numa versão de produção. Semver minor bump pela adição do Modo "Grupos" na aba Inputs. Também inclui fix CSP crítico (handler inline bloqueado pelo Manifest V3) descoberto pós v4.1.9. Três eixos de mudança:
 
 ### 1. Matemática do Anchor Slip X (fix fundamental)
 

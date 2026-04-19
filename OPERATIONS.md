@@ -1,7 +1,11 @@
 # Operations Log
 
-## 2026-04-19 (v4.1.9) — Release estável final
-- [x] Bump 4.1.8 → 4.1.9 e consolidação do ciclo v4.1.4..v4.1.9
+## 2026-04-19 (v4.2.0) — Release estável final
+- [x] Fix CSP crítico: handlers inline `onmouseover`/`onmouseout` no link Privacy Policy bloqueados pelo Manifest V3 — migrado para `.privacy-link:hover` no CSS
+- [x] Adicionados prefixes `-webkit-user-select` (3 pontos) e `-webkit-backdrop-filter` (2 pontos) pra eliminar warnings do linter
+- [x] Rebump 4.1.9 → 4.2.0 (semver minor justificado pelo Modo "Grupos" como feature nova)
+- [x] Release v4.1.9 deletada do GitHub; tag removida local e remota
+- [x] Bump 4.1.8 → 4.2.0 e consolidação do ciclo v4.1.4..v4.2.0
 - [x] README.md reescrito com badges, botão de download direto do release e tutorial de instalação passo-a-passo
 - [x] Modo "Grupos" na aba Inputs com headers coloridos por tipo (mesmo bg-* dos cards) e prioridade Capture/Cor/Mic-Line/Vídeo
 - [x] Histórico colapsado por padrão (faixa 36px) com ícone estilo TimeMachine; marcado como candidato a remoção futura via comentário no HTML

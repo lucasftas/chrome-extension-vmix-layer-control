@@ -3,9 +3,13 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
-## [4.1.9] — 2026-04-19 · Versão estável final
+## [4.2.0] — 2026-04-19 · Versão estável final
 
-Consolida a série 4.1.4 → 4.1.9 numa release de produção. Foco total em refinamento de UX, consistência entre abas e correção matemática do Anchor Slip X.
+Consolida a série 4.1.4 → 4.2.0 numa release de produção. Semver minor bump motivado pela adição do **Modo "Grupos"** na aba Inputs (feature nova).
+
+### Fixed (crítico)
+- **Content Security Policy violation** em `chrome://extensions`: o link "Privacy Policy" da sidebar usava `onmouseover`/`onmouseout` inline, bloqueado pelo Manifest V3. Migrado para classe `.privacy-link` com `:hover` no CSS.
+- Prefixes `-webkit-user-select` e `-webkit-backdrop-filter` adicionados (3 lugares + 2 lugares) — elimina warnings do linter CSS sem impacto no Chrome.
 
 ### Added
 - **Modo "Grupos" (Explorer-style)** na aba Inputs: toggle `Lista ↔ Grupos` na toolbar. No modo Grupos, inputs ficam agrupados por `displayType` com header colapsável colorido na cor do tipo (mesmo padrão dos cards).

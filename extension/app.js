@@ -661,8 +661,7 @@ function renderMainInterface() {
                 </div>
                 <a href="https://lucasftas.github.io/guid-panel-for-broadcast/privacy-policy.html"
                    target="_blank"
-                   style="display:block;text-align:center;margin-top:10px;font-size:10px;color:#555;text-decoration:none;letter-spacing:.4px;transition:color .2s;"
-                   onmouseover="this.style.color='#888'" onmouseout="this.style.color='#555'">
+                   class="privacy-link">
                    🔒 Privacy Policy
                 </a>
             </div>
