@@ -60,6 +60,15 @@ const STATE = {
         rendererOffsetY: 0,
         gapLockY: true,
         _syncTimer: null
+    },
+    // Contexto independente da aba Anchor Slip X — tem seu próprio input-alvo,
+    // layers e polling. Compartilha apenas constantes globais (LC_COLORS etc).
+    anchorControl: {
+        layers: [],
+        selectedLayer: 0,
+        targetInputKey: null,
+        targetInputTitle: '',
+        _syncTimer: null
     }
 };
 
@@ -986,8 +995,8 @@ function setupGlobalEvents() {
     document.getElementById('tabLayers')?.addEventListener('click', () => switchPanelTab('layers'));
     document.getElementById('tabAnchor')?.addEventListener('click', () => switchPanelTab('anchor'));
 
-    // --- Anchor Slip X: target selector + centralizar ---
-    document.getElementById('lcAnchorTargetBtn')?.addEventListener('click', () => lcShowInputSelector());
+    // --- Anchor Slip X: target selector (independente) + centralizar ---
+    document.getElementById('lcAnchorTargetBtn')?.addEventListener('click', () => lcAnchorShowInputSelector());
     document.getElementById('lcAnchorCenter')?.addEventListener('click', () => lcAnchorResetSelected());
 
     // --- Copy history: clear button + initial render ---
@@ -1833,17 +1842,20 @@ function switchPanelTab(tab) {
             lcFetchInputLayers().then(() => lcRender());
         }
         lcStartSync();
+        lcAnchorStopSync();
         lcStartResizeObserver();
     } else if (tab === 'anchor') {
-        if (!STATE.layerControl.targetInputKey) {
+        if (!STATE.anchorControl.targetInputKey) {
             lcAnchorShowWelcome();
         } else {
-            lcFetchInputLayers().then(() => lcAnchorRender());
+            lcAnchorFetchInputLayers().then(() => lcAnchorRender());
         }
-        lcStartSync();
+        lcAnchorStartSync();
+        lcStopSync();
         lcAnchorStartResizeObserver();
     } else {
         lcStopSync();
+        lcAnchorStopSync();
     }
 }
 

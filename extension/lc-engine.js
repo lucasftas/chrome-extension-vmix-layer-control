@@ -499,15 +499,10 @@ function lcShowInputSelector() {
             row.addEventListener('click', async () => {
                 STATE.layerControl.targetInputKey = row.dataset.key;
                 STATE.layerControl.targetInputTitle = row.dataset.title;
-                const label = `#${row.dataset.number} ${row.dataset.title}`;
-                const mlLbl = document.getElementById('lcTargetLabel');
-                const anLbl = document.getElementById('lcAnchorTargetLabel');
-                if (mlLbl) mlLbl.textContent = label;
-                if (anLbl) anLbl.textContent = label;
+                document.getElementById('lcTargetLabel').textContent = `#${row.dataset.number} ${row.dataset.title}`;
                 closeModal();
                 await lcFetchInputLayers();
-                if (STATE.activeTab === 'anchor') lcAnchorRender();
-                else lcRender();
+                lcRender();
                 lcInitHistory();
                 lcStartSync();
             });
@@ -1016,7 +1011,8 @@ document.addEventListener('mousemove', e => {
     // Anchor Slip X: drag horizontal, atualiza slipX com snap no centro.
     // Não usa rect/cW/cH do canvas multilayer; trabalha em pixels absolutos.
     if (_lcDrag.type === 'anchor') {
-        const l = lc.layers[_lcDrag.i];
+        const ac = STATE.anchorControl;
+        const l = ac.layers[_lcDrag.i];
         if (!l) return;
         const dx = e.clientX - _lcDrag.startClientX;
         const delta = (dx / _lcDrag.boxWpx) * 2;
@@ -1127,10 +1123,10 @@ document.addEventListener('mouseup', () => {
     _lcDrag = null;
 
     if (type === 'anchor') {
-        const l = lc.layers[idx];
+        const ac = STATE.anchorControl;
+        const l = ac.layers[idx];
         if (l && Math.abs((l.slipX || 0) - (startSlip || 0)) > 0.001) {
-            lcPushUndo('Anchor Slip X');
-            lcSendToVMix(l);
+            lcAnchorSendToVMix(l);
         }
         lcAnchorRender();
         return;
@@ -1191,10 +1187,10 @@ function _lcAnchorBuildGridLabels() {
 // mousemove/mouseup globais (acima) processam o tipo.
 function lcAnchorStartDrag(e, i) {
     e.preventDefault(); e.stopPropagation();
-    const lc = STATE.layerControl;
-    const l = lc.layers[i];
+    const ac = STATE.anchorControl;
+    const l = ac.layers[i];
     if (!l || !l.inputKey) return;
-    lc.selectedLayer = i;
+    ac.selectedLayer = i;
     const boxEl = e.currentTarget;
     _lcDrag = {
         type: 'anchor',
@@ -1209,21 +1205,20 @@ function lcAnchorStartDrag(e, i) {
 
 // Reset de slipX em uma layer (via dblclick).
 function lcAnchorReset(i) {
-    const lc = STATE.layerControl;
-    const l = lc.layers[i];
+    const ac = STATE.anchorControl;
+    const l = ac.layers[i];
     if (!l || l.hidden || !l.inputKey) return;
     if (Math.abs(l.slipX || 0) < 0.001) return;
-    lcPushUndo('Reset Anchor Slip X');
     l.slipX = 0;
     lcAnchorRender();
-    lcSendToVMix(l);
+    lcAnchorSendToVMix(l);
     showToast(`Layer ${l.index + 1}: âncora centralizada`);
 }
 
 // Reset da layer selecionada (via botão "Centralizar" na toolbar).
 function lcAnchorResetSelected() {
-    const lc = STATE.layerControl;
-    lcAnchorReset(lc.selectedLayer);
+    const ac = STATE.anchorControl;
+    lcAnchorReset(ac.selectedLayer);
 }
 
 // Fit do canvas anchor mantendo 16:9 (mesma lógica de lcFitCanvas).
@@ -1278,10 +1273,11 @@ function lcAnchorShowWelcome() {
 // Render completo do Anchor (canvas + lista lateral).
 function lcAnchorRender() {
     lcAnchorRenderCanvas();
-    lcRenderLayerList('anchorLayerList');
+    lcAnchorRenderLayerList();
 }
 
 // Render do canvas anchor: layer-boxes com textura por hue, ghost, handles.
+// Usa STATE.anchorControl (contexto independente do Multilayer).
 function lcAnchorRenderCanvas() {
     const canvas = document.getElementById('anchorCanvas');
     const wrapper = document.querySelector('.anchor-canvas-wrapper');
@@ -1294,15 +1290,15 @@ function lcAnchorRenderCanvas() {
     canvas.innerHTML = '';
     wrapper.querySelectorAll('.ghost-texture, .transform-handles').forEach(n => n.remove());
 
-    const lc = STATE.layerControl;
-    lc.layers.forEach((l, i) => {
+    const ac = STATE.anchorControl;
+    ac.layers.forEach((l, i) => {
         if (l.hidden || !l.inputKey) return;
 
         const Z = Math.max(l.w, l.h);
         const baseCropX = lcAnchorBaseCropX(l);
 
         const box = document.createElement('div');
-        box.className = 'anchor-layer-box' + (i === lc.selectedLayer ? ' selected' : '');
+        box.className = 'anchor-layer-box' + (i === ac.selectedLayer ? ' selected' : '');
         box.dataset.i = i;
         box.style.left = (l.x * 100) + '%';
         box.style.top = (l.y * 100) + '%';
@@ -1337,15 +1333,15 @@ function lcAnchorRenderCanvas() {
 
         // Interação: click seleciona, mousedown inicia drag, dblclick reseta
         box.addEventListener('mousedown', e => lcAnchorStartDrag(e, i));
-        box.addEventListener('click', e => {
-            if (!_lcDrag) { lc.selectedLayer = i; lcAnchorRender(); }
+        box.addEventListener('click', () => {
+            if (!_lcDrag) { ac.selectedLayer = i; lcAnchorRender(); }
         });
         box.addEventListener('dblclick', e => {
             e.preventDefault(); e.stopPropagation();
             lcAnchorReset(i);
         });
 
-        // Drop de input no canvas — reusa lógica de lcAssignLayerInput
+        // Drop de input no canvas anchor — opera no anchorControl
         lcSetupDropTarget(box, e => {
             try {
                 const data = JSON.parse(e.dataTransfer.getData('text/plain'));
@@ -1353,10 +1349,10 @@ function lcAnchorRenderCanvas() {
                     l.inputKey = data.key;
                     l.inputTitle = data.shortTitle || data.title || '';
                     l.hidden = false; l._knownState = true; l._checkOff = false;
-                    lc.selectedLayer = i;
-                    lcAssignLayerInput(l.index, data.key);
+                    ac.selectedLayer = i;
+                    lcAnchorAssignLayerInput(l.index, data.key);
                     lcAnchorRender();
-                    lcSendToVMix(l);
+                    lcAnchorSendToVMix(l);
                 }
             } catch { }
         });
@@ -1365,7 +1361,7 @@ function lcAnchorRenderCanvas() {
     });
 
     // Ghost texture + Transform Handles SÓ pra layer selecionada
-    const sel = lc.layers[lc.selectedLayer];
+    const sel = ac.layers[ac.selectedLayer];
     if (sel && !sel.hidden && sel.inputKey) lcAnchorRenderOverlay(sel, cW, cH);
 }
 
@@ -1426,6 +1422,202 @@ function lcAnchorRenderOverlay(l, cW, cH) {
     handles.appendChild(hint);
 
     wrapper.appendChild(handles);
+}
+
+// ------------- INPUT-ALVO INDEPENDENTE -------------
+
+// Modal de seleção do input-alvo do Anchor (atualiza apenas STATE.anchorControl).
+function lcAnchorShowInputSelector() {
+    const inst = getActiveInstance();
+    if (!inst || inst.status !== 'online') { showToast('Conecte a uma instância primeiro'); return; }
+    if (!inst.inputs.length) { showToast('Nenhum input encontrado'); return; }
+
+    const rows = inst.inputs.map(inp => `
+        <div class="lc-input-row" data-key="${inp.key}" data-title="${inp.shortTitle || inp.title}" data-number="${inp.number}">
+            <span class="lc-input-num">${inp.number}</span>
+            <span class="lc-input-title">${inp.title}</span>
+            <span class="lc-input-type">${inp.displayType}</span>
+        </div>`).join('');
+
+    showModal(`
+        <div class="modal-header">
+            <div class="modal-icon" style="background:#e86c00">${getIcon('anchor')}</div>
+            <div><div class="modal-title">Selecionar Input (Anchor Slip X)</div>
+            <div class="modal-sub">Este input é independente da aba Multilayer</div></div>
+        </div>
+        <div class="modal-body"><div class="lc-input-list" id="lcAnchorInputList">${rows}</div></div>
+    `, card => {
+        card.querySelectorAll('.lc-input-row').forEach(row => {
+            row.addEventListener('click', async () => {
+                STATE.anchorControl.targetInputKey = row.dataset.key;
+                STATE.anchorControl.targetInputTitle = row.dataset.title;
+                const lbl = document.getElementById('lcAnchorTargetLabel');
+                if (lbl) lbl.textContent = `#${row.dataset.number} ${row.dataset.title}`;
+                closeModal();
+                await lcAnchorFetchInputLayers();
+                lcAnchorRender();
+                lcAnchorStartSync();
+            });
+        });
+    });
+}
+
+// Fetch das overlays do input-alvo do anchor (popula STATE.anchorControl.layers).
+async function lcAnchorFetchInputLayers() {
+    const base = lcVMixBase();
+    const ac = STATE.anchorControl;
+    if (!base || !ac.targetInputKey) return;
+
+    try {
+        const res = await fetch(base, { signal: AbortSignal.timeout(5000) });
+        const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
+        const inputEl = Array.from(doc.getElementsByTagName('input')).find(el => el.getAttribute('key') === ac.targetInputKey);
+        if (!inputEl) return;
+
+        const ovMap = _parseOverlays(doc, inputEl);
+
+        while (ac.layers.length < 10) ac.layers.push(lcMakeLayer(ac.layers.length));
+
+        for (let i = 0; i < 10; i++) {
+            const l = ac.layers[i];
+            const ov = ovMap[i];
+            if (ov) {
+                l.inputKey = ov.key; l.inputTitle = ov.title;
+                if (!l._posSet) {
+                    l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h;
+                    l.trim = ov.trim || lcMakeTrim();
+                    l.slipX = ov.slipX || 0;
+                    l._posSet = true;
+                }
+                if (!l._checkOff) l.hidden = false;
+            } else {
+                l.inputKey = null; l.inputTitle = ''; l.hidden = true;
+            }
+        }
+        ac.layers.sort((a, b) => a.index - b.index);
+        if (ac.selectedLayer >= 10) ac.selectedLayer = 0;
+    } catch (err) {
+        console.warn('[lcAnchorFetchInputLayers]', err);
+    }
+}
+
+// Dispatch vMix do Anchor — usa targetInputKey do anchorControl (NÃO do layerControl).
+function lcAnchorSendToVMix(layer) {
+    if (!layer.inputKey) return;
+    const ac = STATE.anchorControl;
+    const base = lcVMixBase();
+    if (!base || !ac.targetInputKey) return;
+    const N = layer.index + 1;
+    const tk = ac.targetInputKey;
+    let vm = lcToVMix(layer);
+    vm = lcApplyRendererOffset(vm);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}PanX&Input=${tk}&Value=${vm.panX}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}PanY&Input=${tk}&Value=${vm.panY}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}Zoom&Input=${tk}&Value=${vm.zoom}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX1&Input=${tk}&Value=${vm.cropX1}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropX2&Input=${tk}&Value=${vm.cropX2}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY1&Input=${tk}&Value=${vm.cropY1}`);
+    VMixCommandQueue.enqueue(`${base}?Function=SetLayer${N}CropY2&Input=${tk}&Value=${vm.cropY2}`);
+}
+
+// Atribui input a um slot de layer no vMix (contexto anchor).
+function lcAnchorAssignLayerInput(layerIdx, inputKey) {
+    const ac = STATE.anchorControl;
+    const base = lcVMixBase();
+    if (!base || !ac.targetInputKey) return;
+    const N = layerIdx + 1;
+    VMixCommandQueue.enqueue(`${base}?Function=SetMultiViewOverlay&Input=${ac.targetInputKey}&Value=${N},${inputKey}`);
+    VMixCommandQueue.enqueue(`${base}?Function=MultiViewOverlayOn&Input=${ac.targetInputKey}&Value=${N}`);
+}
+
+// Polling bidirecional específico do anchor (1s). Puxa estado do vMix e
+// atualiza STATE.anchorControl.layers (ignorando layer selecionada pra não
+// conflitar com drag em progresso).
+let _lcAnchorSyncInterval = null;
+function lcAnchorStartSync() {
+    lcAnchorStopSync();
+    _lcAnchorSyncInterval = setInterval(async () => {
+        if (STATE.activeTab !== 'anchor') return;
+        if (_lcDrag && _lcDrag.type === 'anchor') return;
+        const ac = STATE.anchorControl;
+        if (!ac.targetInputKey) return;
+        try {
+            const base = lcVMixBase(); if (!base) return;
+            const res = await fetch(base, { signal: AbortSignal.timeout(4000) });
+            const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
+            const inputEl = Array.from(doc.getElementsByTagName('input')).find(el => el.getAttribute('key') === ac.targetInputKey);
+            if (!inputEl) return;
+            const ovMap = _parseOverlays(doc, inputEl);
+            let changed = false;
+            for (let i = 0; i < 10; i++) {
+                const l = ac.layers[i];
+                if (!l) continue;
+                const ov = ovMap[i];
+                if (ov) {
+                    if (l.inputKey !== ov.key || l.inputTitle !== ov.title) {
+                        l.inputKey = ov.key; l.inputTitle = ov.title; changed = true;
+                    }
+                    if (i !== ac.selectedLayer && !l.hidden) {
+                        l.x = ov.x; l.y = ov.y; l.w = ov.w; l.h = ov.h;
+                        l.trim = ov.trim || lcMakeTrim();
+                        l.slipX = ov.slipX || 0;
+                    }
+                } else if (l.inputKey) {
+                    l.inputKey = null; l.inputTitle = ''; l.hidden = true; changed = true;
+                }
+            }
+            if (changed || true) lcAnchorRender();
+        } catch { /* silencioso */ }
+    }, 1000);
+}
+function lcAnchorStopSync() {
+    if (_lcAnchorSyncInterval) { clearInterval(_lcAnchorSyncInterval); _lcAnchorSyncInterval = null; }
+}
+
+// Render da lista lateral de 10 layers do anchor (sidebar direita, #anchorLayerList).
+// Versão simplificada: só label + checkbox visibilidade + seleção.
+function lcAnchorRenderLayerList() {
+    const container = document.getElementById('anchorLayerList');
+    if (!container) return;
+    const ac = STATE.anchorControl;
+    container.innerHTML = '';
+    while (ac.layers.length < 10) ac.layers.push(lcMakeLayer(ac.layers.length));
+
+    for (let i = 0; i < 10; i++) {
+        const l = ac.layers[i];
+        const has = !!l.inputKey;
+        const sel = i === ac.selectedLayer && has;
+
+        const row = document.createElement('div');
+        row.className = 'lc-layer-row' + (sel ? ' selected' : '') + (has ? '' : ' empty');
+
+        const num = document.createElement('div');
+        num.className = 'lc-layer-num';
+        num.style.background = has && !l.hidden ? l.color : '#333';
+        num.textContent = i + 1;
+
+        const label = document.createElement('div');
+        label.className = 'lc-layer-label';
+        label.style.flex = '1';
+        label.style.minWidth = '0';
+        label.style.overflow = 'hidden';
+        label.style.textOverflow = 'ellipsis';
+        label.style.whiteSpace = 'nowrap';
+        label.style.fontSize = '12px';
+        label.textContent = has ? (l.inputTitle || '—') : '— vazio —';
+
+        row.appendChild(num);
+        row.appendChild(label);
+
+        if (has) {
+            row.addEventListener('click', () => {
+                ac.selectedLayer = i;
+                lcAnchorRender();
+            });
+        }
+
+        container.appendChild(row);
+    }
 }
 
 // Gera SVG de textura de referência (1920×1080) tingido pelo hue da layer.
