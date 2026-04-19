@@ -877,22 +877,35 @@ function renderInputs() {
             e.preventDefault();
             copyData(input, card);
         });
-        // Left-click: Deck = copy GUID, Layers = select as target input
+        // Left-click por aba:
+        //   Deck/Inputs  → copia GUID
+        //   Multilayer   → define como target input (layerControl)
+        //   Anchor Slip  → define como target input (anchorControl, independente)
         card.addEventListener('click', () => {
             if (STATE.activeTab === 'layers') {
                 STATE.layerControl.targetInputKey = input.key;
                 STATE.layerControl.targetInputTitle = input.shortTitle || input.title;
                 document.getElementById('lcTargetLabel').textContent = `#${input.number} ${input.shortTitle || input.title}`;
-                // Reset _posSet so positions are fetched fresh
                 STATE.layerControl.layers.forEach(l => { l._posSet = false; });
                 lcFetchInputLayers().then(() => lcRender());
-                renderInputs(); // update active highlight
+                renderInputs();
+            } else if (STATE.activeTab === 'anchor') {
+                STATE.anchorControl.targetInputKey = input.key;
+                STATE.anchorControl.targetInputTitle = input.shortTitle || input.title;
+                const lbl = document.getElementById('lcAnchorTargetLabel');
+                if (lbl) lbl.textContent = `#${input.number} ${input.shortTitle || input.title}`;
+                STATE.anchorControl.layers.forEach(l => { l._posSet = false; });
+                lcAnchorFetchInputLayers().then(() => lcAnchorRender());
+                lcAnchorStartSync();
+                renderInputs();
             } else {
                 copyData(input, card);
             }
         });
-        // Highlight active target input in layers mode
+        // Highlight active target input de acordo com a aba
         if (STATE.activeTab === 'layers' && input.key === STATE.layerControl.targetInputKey) {
+            card.classList.add('lc-active');
+        } else if (STATE.activeTab === 'anchor' && input.key === STATE.anchorControl.targetInputKey) {
             card.classList.add('lc-active');
         }
         card.innerHTML = `
