@@ -21,29 +21,52 @@
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
-/* Tema Deck — Stream Deck (roxo) */
+/* Tema Deck/Inputs — roxo */
 .theme-deck {
     --accent: #7c3aed;
     --accent-light: #a78bfa;
+    --accent-orange: #7c3aed;  /* override pra tingir elementos globais */
     --bg-sidebar: #1a1225;
 }
 .theme-deck .sidebar { background: #1a1225; }
-.theme-deck .deck-tab.active { color: #7c3aed; border-color: #7c3aed; }
+.theme-deck .deck-tab.active { color: #7c3aed; border-color: #7c3aed; background: #faf5ff; }
 .theme-deck .card-num { background: #7c3aed; }
+.theme-deck .input-card.lc-active {
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.3);
+    background: #faf5ff;
+}
 
-/* Tema Layers — Itaú (laranja) */
+/* Tema Layers — laranja (Multilayer Editor) */
 .theme-layers {
     --accent: #e86c00;
     --accent-light: #ff9a3c;
+    --accent-orange: #e86c00;
     --bg-sidebar: #1e1408;
 }
 .theme-layers .sidebar { background: #1e1408; }
-.theme-layers .deck-tab.active { color: #e86c00; border-color: #e86c00; }
+.theme-layers .deck-tab.active { color: #e86c00; border-color: #e86c00; background: #fff8f0; }
 .theme-layers .card-num { background: #e86c00; }
 .theme-layers .input-card.lc-active {
     border-color: #e86c00;
     box-shadow: 0 0 0 2px rgba(232, 108, 0, 0.3);
     background: #fff8f0;
+}
+
+/* Tema Anchor — verde (Anchor Slip X) */
+.theme-anchor {
+    --accent: #16a34a;
+    --accent-light: #4ade80;
+    --accent-orange: #16a34a;  /* override pra elementos que usam esse token */
+    --bg-sidebar: #0b1f14;
+}
+.theme-anchor .sidebar { background: #0b1f14; }
+.theme-anchor .deck-tab.active { color: #16a34a; border-color: #16a34a; background: #f0fdf4; }
+.theme-anchor .card-num { background: #16a34a; }
+.theme-anchor .input-card.lc-active {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.3);
+    background: #f0fdf4;
 }
 
 /* Transições suaves entre temas */
