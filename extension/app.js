@@ -674,14 +674,11 @@ function renderMainInterface() {
                 <!-- DECK + LAYER CONTROL (tabbed) -->
                 <div class="deck-panel">
                     <div class="deck-tabs">
-                        <button class="deck-tab active" id="tabDeck">${getIcon('grid')} Deck</button>
-                        <button class="deck-tab" id="tabLayers">${getIcon('layers')} Live MultiLayer Editor</button>
+                        <button class="deck-tab active" id="tabDeck">${getIcon('layers')} Inputs</button>
+                        <button class="deck-tab" id="tabLayers">${getIcon('grid')} Live MultiLayer Editor</button>
                     </div>
                     <div class="deck-content" id="deckContent">
-                        <div class="deck-header">
-                            <span style="display:flex;align-items:center;gap:6px;">${getIcon('layers')} <span>Inputs do vMix — clique para copiar o GUID</span></span>
-                        </div>
-                        <div class="deck-inputs-panel" id="deckInputsPanel"></div>
+                        <!-- Inputs panel é movido pra dentro aqui via switchPanelTab quando aba = inputs -->
                     </div>
                     <div class="layer-content hidden" id="layerContent">
                         <div class="lc-toolbar">
@@ -1732,8 +1729,26 @@ function switchPanelTab(tab) {
     deckContent.classList.toggle('hidden', tab !== 'deck');
     layerContent.classList.toggle('hidden', tab !== 'layers');
 
-    // Copy History visível apenas no modo Deck
+    // DOM swap do inputs-panel dependendo da aba ativa:
+    //   aba 'deck' (Inputs): inputs vai pra DENTRO do #deckContent (ocupa o espaço abaixo das abas)
+    //   aba 'layers' (Multilayer): inputs volta pra content-area como coluna à direita
+    const inputsPanel = document.querySelector('.inputs-panel');
+    const contentArea = document.querySelector('.content-area');
     const historyPanel = document.getElementById('copyHistoryPanel');
+    if (inputsPanel && contentArea && deckContent) {
+        if (tab === 'deck') {
+            inputsPanel.classList.add('in-deck');
+            if (inputsPanel.parentElement !== deckContent) deckContent.appendChild(inputsPanel);
+        } else {
+            inputsPanel.classList.remove('in-deck');
+            if (inputsPanel.parentElement !== contentArea) {
+                if (historyPanel) contentArea.insertBefore(inputsPanel, historyPanel);
+                else contentArea.appendChild(inputsPanel);
+            }
+        }
+    }
+
+    // Copy History visível apenas no modo Inputs (deck)
     if (historyPanel) historyPanel.classList.toggle('hidden', tab !== 'deck');
 
     // Theme switching
@@ -1822,9 +1837,8 @@ async function init() {
     setupGlobalEvents();
     restoreSettings();
 
-    // Set default theme (Deck = purple)
-    const root = document.getElementById('app-root');
-    if (root) root.className = 'theme-deck';
+    // Aplica o posicionamento correto de inputs-panel + histórico pra aba ativa
+    switchPanelTab(STATE.activeTab || 'deck');
 
     // Initialize layer control with 10 empty layers
     if (STATE.layerControl.layers.length === 0) {

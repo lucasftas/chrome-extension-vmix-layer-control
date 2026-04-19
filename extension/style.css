@@ -1030,7 +1030,9 @@ body {
     padding: 30px 20px;
 }
 
-/* INPUTS (coluna central) */
+/* INPUTS panel — posição depende da aba ativa (ver switchPanelTab)
+   - Aba Inputs (in-deck): preenche deck-content abaixo das tabs
+   - Aba Multilayer: coluna à direita em content-area */
 .inputs-panel {
     flex: 1.4 1 0;
     min-width: 280px;
@@ -1042,6 +1044,19 @@ body {
     border-radius: 8px;
     overflow: hidden;
     box-shadow: var(--shadow);
+}
+/* Quando dentro de .deck-content: sem borda extra, ocupa tudo */
+.inputs-panel.in-deck {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    height: 100%;
+}
+/* deck-content adaptado para conter inputs-panel em full size */
+.deck-content:has(.inputs-panel.in-deck) {
+    padding: 0;
 }
 
 /* COPY HISTORY (coluna direita, só em modo Deck) */
