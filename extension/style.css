@@ -287,7 +287,16 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: width 0.2s ease, min-width 0.2s ease, border-right-color 0.2s ease;
 }
+
+/* Sidebar colapsada — default. Mostra só via hamburger no topbar. */
+.app-layout.sidebar-closed .sidebar {
+    width: 0;
+    min-width: 0;
+    border-right-color: transparent;
+}
+.app-layout.sidebar-closed .sidebar * { visibility: hidden; }
 
 .sidebar-header {
     padding: 14px 16px 10px;
@@ -721,6 +730,32 @@ body {
     align-items: center;
     gap: 10px;
     min-width: 0;
+}
+
+.btn-hamburger {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 34px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+.btn-hamburger:hover {
+    background: #f3f4f6;
+    color: var(--text);
+    border-color: var(--border-dark);
+}
+.btn-hamburger svg { width: 16px; height: 16px; }
+.app-layout.sidebar-open .btn-hamburger {
+    background: var(--accent-orange);
+    color: #fff;
+    border-color: var(--accent-orange);
 }
 
 .topbar-right {
