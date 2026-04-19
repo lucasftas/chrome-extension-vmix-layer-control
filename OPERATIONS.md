@@ -1,5 +1,12 @@
 # Operations Log
 
+## 2026-04-19 (v4.1.6)
+- [x] UX refinement: sincronizar targetInputKey entre abas ao trocar de aba (one-way mirror)
+- [x] Reset `_posSet=false` em todas as layers da aba-destino pra forçar fetch completo do vMix
+- [x] Label da toolbar atualizada via lookup em `getActiveInstance().inputs`
+- [x] Sintaxe validada (`node -c`) em app.js + lc-engine.js
+- [x] Release v4.1.6 publicada
+
 ## 2026-04-19 (v4.1.5)
 - [x] Decisão UX: badge `SLIP` na sidebar + tarja de warning no Multilayer quando target tem slip (opção 1 do menu oferecido)
 - [x] `_lcMakeSlipBadge(l)` + integração em `lcRenderLayerList` ([extension/lc-engine.js:894](extension/lc-engine.js#L894)) e `lcAnchorRenderLayerList` ([extension/lc-engine.js:1620](extension/lc-engine.js#L1620))

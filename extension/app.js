@@ -1855,6 +1855,33 @@ function switchPanelTab(tab) {
     renderInputs();
     if (tab === 'deck') renderCopyHistory();
 
+    // Sincronização cruzada de target entre abas: ao entrar em Multilayer/Anchor,
+    // espelha o targetInputKey da aba oposta (se ela tiver um definido). Também
+    // reseta _posSet em todas as layers da aba-destino pra forçar pull fresh do
+    // vMix — garante que mudanças feitas na aba anterior (ex: preset 33/66)
+    // apareçam refletidas imediatamente ao voltar.
+    if (tab === 'layers' && STATE.anchorControl.targetInputKey) {
+        STATE.layerControl.targetInputKey = STATE.anchorControl.targetInputKey;
+        STATE.layerControl.targetInputTitle = STATE.anchorControl.targetInputTitle;
+        STATE.layerControl.layers.forEach(l => { l._posSet = false; });
+        const lbl = document.getElementById('lcTargetLabel');
+        if (lbl && STATE.anchorControl.targetInputTitle) {
+            const inst = getActiveInstance();
+            const inp = inst?.inputs?.find(i => i.key === STATE.layerControl.targetInputKey);
+            lbl.textContent = inp ? `#${inp.number} ${inp.shortTitle || inp.title}` : STATE.anchorControl.targetInputTitle;
+        }
+    } else if (tab === 'anchor' && STATE.layerControl.targetInputKey) {
+        STATE.anchorControl.targetInputKey = STATE.layerControl.targetInputKey;
+        STATE.anchorControl.targetInputTitle = STATE.layerControl.targetInputTitle;
+        STATE.anchorControl.layers.forEach(l => { l._posSet = false; });
+        const lbl = document.getElementById('lcAnchorTargetLabel');
+        if (lbl && STATE.layerControl.targetInputTitle) {
+            const inst = getActiveInstance();
+            const inp = inst?.inputs?.find(i => i.key === STATE.anchorControl.targetInputKey);
+            lbl.textContent = inp ? `#${inp.number} ${inp.shortTitle || inp.title}` : STATE.layerControl.targetInputTitle;
+        }
+    }
+
     if (tab === 'layers') {
         if (!STATE.layerControl.targetInputKey) {
             lcShowWelcome();

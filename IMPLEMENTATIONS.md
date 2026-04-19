@@ -1,5 +1,19 @@
 # Implementations
 
+## v4.1.6 — 2026-04-19
+
+### UX: sincronização de target + refresh entre abas
+
+Na v4.1.1 cada aba passou a ter `targetInputKey` próprio (independência total). Ficou inconveniente na prática — trocar de aba fazia perder a seleção e mostrar estado cacheado (último fetch daquela aba).
+
+Correção em `switchPanelTab`:
+
+1. **Espelha target da aba oposta** (one-way na troca). Ao entrar em 'layers', se `anchorControl.targetInputKey` existe, copia pra `layerControl`. E vice-versa. Isso mantém a UX de "seleção continua" sem unificar os states (os dois permanecem estruturalmente separados, só ficam em sync enquanto o usuário não mudar o target de propósito).
+
+2. **Reset `_posSet = false`** em todas as 10 layers da aba-destino. O fetch (`lcFetchInputLayers`/`lcAnchorFetchInputLayers`) só sobrescreve geometria quando `_posSet=false` — resetar força pull completo do vMix, refletindo mudanças feitas na aba anterior (ex: preset aplicado no Multilayer aparece de cara no Anchor).
+
+3. Label da toolbar atualizada via lookup no `getActiveInstance().inputs`.
+
 ## v4.1.5 — 2026-04-19
 
 ### UX: sinalização do slipX entre as abas
