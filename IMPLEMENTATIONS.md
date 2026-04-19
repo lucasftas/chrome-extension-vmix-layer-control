@@ -1,5 +1,24 @@
 # Implementations
 
+## v4.1.4 — 2026-04-19
+
+### Fix matemático: Anchor Slip X com compensação de panX
+
+Descoberta via teste direto na API do vMix (preset 50/50 no Input 1, animação ao vivo com `slipX` em sweep -1 ↔ +1): deslocar apenas `cropX1`/`cropX2` em paralelo **não** mantém a layer fixa no canvas — ela avança sobre a layer vizinha, pois o vMix renderiza a bounding box inteira no `panX` informado e o crop só "esconde" pedaços dela proporcionalmente à largura.
+
+A bounding box visível no canvas vai de `panX_px + cropX1·bbox_w` até `panX_px + cropX2·bbox_w`. Se slip soma `slipOffsetX` nos dois cropX, o início e fim visível sobem **ambos** em `slipOffsetX · bbox_w = slipOffsetX · 1920` (com zoom=1). Compensar `panX` em `−2·slipOffsetX` (em espaço normalizado `-1..+1`, onde `1` = 960px de bbox_w/2) cancela exatamente esse deslocamento:
+
+```
+slipOffsetX = slipX * baseCropX
+panX_vmix   = (x + w/2)·2 − 1 − 2·slipOffsetX     ← NOVO
+cropX1_vmix = baseCropX + trim.left/Z + slipOffsetX
+cropX2_vmix = (1 − baseCropX) − trim.right/Z + slipOffsetX
+```
+
+**Reverse** em `lcFromVMix`: extrai `slipOffsetX = (cropX1 − (1 − cropX2)) / 2` e desfaz a compensação com `cx = (panX + 1)/2 + slipOffsetX` antes de calcular `x = cx − w/2`.
+
+Round-trip validado para `slipX = {+0.5, -1}` — geometria original (`x`, `w`) preservada com precisão de 6 casas.
+
 ## v4.1.0 — 2026-04-19
 
 ### Nova feature: Anchor Slip X

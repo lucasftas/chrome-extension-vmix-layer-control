@@ -3,6 +3,17 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.4] — 2026-04-19
+
+### Fixed
+- **Anchor Slip X agora preserva a posição da layer (efeito máscara real).** Antes, deslocar `cropX1`/`cropX2` em paralelo fazia a bounding box da layer se mover no canvas do vMix (overlap na layer vizinha). Validado via API ao vivo com preset 50/50 no Input 1.
+- `lcToVMix`: adicionada compensação `panX = panX_base − 2 · slipOffsetX` — a bounding box é deslocada no sentido oposto ao crop, mantendo a janela visível no mesmo lugar enquanto o conteúdo interno desliza.
+- `lcFromVMix`: reverse ajustado — `cx = (panX + 1)/2 + slipOffsetX` remove a compensação antes de reconstruir a geometria original.
+
+### Validated
+- Round-trip matemático: `slipX=+0.5` → `panX=-0.75, cropX1=0.375, cropX2=0.875` → reverso retorna `x=0, w=0.5, slipX=0.5` exatos.
+- Caso extremo `slipX=-1` → `panX=0, cropX1=0, cropX2=0.5` (toda a metade esquerda da textura aparece na janela esquerda do canvas).
+
 ## [4.1.0] — 2026-04-19
 
 ### Added
