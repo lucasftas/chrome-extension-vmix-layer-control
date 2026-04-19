@@ -1,5 +1,51 @@
 # Implementations
 
+## v4.0.0 — 2026-04-19
+
+### Redesign do Deck: de Grid para Lista + Histórico
+
+O painel Deck tinha evoluído com muitas features periféricas (Stream-Deck style grid, Companion Action Builder, Properties Panel, Gap sliders) que o usuário não utilizava mais. A v4 é uma remoção cirúrgica de 23 features mapeadas, substituindo o grid 16/32/40/64 botões por:
+- **Lista vertical de inputs** no centro — click copia GUID diretamente
+- **Painel de histórico** à direita — últimas 50 cópias com botão "recopiar"
+
+### Migração automática v3 → v4
+
+`migrateV3ToV4()` roda uma vez em `init()`:
+1. Varre `localStorage` por chaves `vmix_deck_*` e `vmix_grid_size`
+2. Remove todas
+3. Seta `vmix_v4_migrated=1` para não re-executar
+
+### Inventário de auditoria
+
+Antes da v4 foi gerado um `feature-audit.html` standalone com 115 features catalogadas (19 grupos). O usuário desmarcou 23 + decidiu 3 casos limítrofes (deck_layout_persistence, gap_visualization, copy_mode_toggle) via AskUserQuestion. JSON exportado guiou a implementação faseada.
+
+### Fases de execução
+
+10 fases, 1 commit cada:
+- **Fase 1**: Companion Action Builder (8 features)
+- **Fase 2**: Properties Panel (5 features + overrides system)
+- **Fase 3**: Gap sliders UI + gap_visualization (4 features)
+- **Fase 4**: Copy Mode Toggle (1 feature)
+- **Fase 5**: Deck grid (6 features)
+- **Fase 6**: Storage cleanup migration (vmix_deck_*, vmix_grid_size)
+- **Fase 7**: deck_copy_history (novo feature)
+- **Fase 8**: Layout 3 colunas (CSS)
+- **Fase 9**: Revalidação + remoção de artefatos
+- **Fase 10**: Merge em main + filé
+
+### Dependências compartilhadas preservadas
+
+- `copy_system`, `toast_system`, `modal_system`: usados por outras features, mantidos
+- `gap_lock_y`: sobrevive sem sliders porque `layer_snap_resize` usa
+- `reset_crop_y`: independente dos sliders, mantido
+
+### Redução de tamanho
+
+- app.js: ~2.5k → ~1.85k linhas
+- lc-engine.js: ~1.8k → ~1.5k linhas
+- style.css: ~3.2k → ~2.6k linhas
+- **Total: ~1.400 linhas a menos** no bundle ativo
+
 ## v3.1.3 — 2026-04-17
 
 ### Limpeza estrutural

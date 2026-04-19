@@ -1,5 +1,22 @@
 # Operations Log
 
+## 2026-04-19 (v4.0.0)
+- [x] Criada branch `stable/v3` congelando v3.1.3 como âncora pro Deck + Multilayer Editor completo
+- [x] Inventário auto-gerado (`feature-audit.html`) catalogando 115 features em 19 grupos; versão bilíngue pt-BR/EN
+- [x] Usuário revisou e selecionou 23 features para remoção; decisões complementares via AskUserQuestion (deck_layout_persistence=remover, gap_visualization=remover, copy_mode=só GUID, histórico=50 entradas)
+- [x] Branch `feat/v4-cleanup` criada e executada em 10 fases sequenciais (1 commit cada)
+- [x] Fase 1: Companion Action Builder (8 features: modal + 7 presets)
+- [x] Fase 2: Properties Panel + sistema de overrides
+- [x] Fase 3: Gap sliders UI + gap_visualization
+- [x] Fase 4: Copy Mode Toggle GUID/VAR
+- [x] Fase 5: Deck grid completo
+- [x] Fase 6: Migration one-shot limpa vmix_deck_* e vmix_grid_size
+- [x] Fase 7: Nova feature deck_copy_history (50 entries, vmix_copy_history)
+- [x] Fase 8: Layout 3 colunas (sidebar | inputs | histórico)
+- [x] Fase 9: Revalidação sintática + remoção de artefatos de auditoria
+- [x] Fase 10: Merge em main, release v4.0.0 publicada com zip de instalação
+- [x] Bump major (v3.1.3 → v4.0.0) devido ao breaking do storage + remoção de UI massiva
+
 ## 2026-04-17 (v3.1.3)
 - [x] Removida pasta `extensionV9/` — `extension/` única fonte de verdade
 - [x] Release v3.1.3 publicada (limpeza estrutural, sem mudança funcional)

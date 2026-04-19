@@ -3,6 +3,30 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.0.0] — 2026-04-19
+
+### Added
+- **Copy History**: painel à direita no modo Deck com lista de até 50 cópias (timestamp, número, título, GUID). Cada linha tem botão "Copiar" para recopiar; botão global "Limpar". Storage em `vmix_copy_history`.
+- `migrateV3ToV4()`: one-shot no boot remove chaves `vmix_deck_*` e `vmix_grid_size` do localStorage, marca `vmix_v4_migrated=1`.
+
+### Changed
+- **Layout 3 colunas** no modo Deck: sidebar | inputs (central) | histórico (direita). Multilayer Editor inalterado.
+- `content-area` muda de `flex-direction: column` para `row`.
+- Header do Deck agora é texto fixo "Inputs do vMix — clique para copiar o GUID" (era título dinâmico + botão Limpar Tudo).
+- `copyData(data, btn)` sem parâmetro de modo; sempre copia `data.key` (GUID) e registra em histórico.
+- `lcApplyPreset` não reseta mais overrides (removidos).
+
+### Removed (23 features, breaking)
+- **Companion Action Builder**: modal + 7 presets (PGM, Mute, Bus, Layer Set, Layer Toggle, Output, code copy).
+- **Deck grid**: `renderDeck`, `renameButton`, `handleDrop`, `resizeAllLayouts`; HTML `.deck-grid`, `.btn-clear`, `.sd-btn*`; CSS `.sd-btn-*`, `.btn-companion`.
+- **Grid Size Selector** (16/32/40/64 botões) + persistência em `vmix_grid_size`.
+- **Properties Panel**: `lcRenderPropsPanel`, `LC_PROPS_FIELDS`; toggle collapsible; sistema de overrides (`_overrides`, `lcMakeOverrides`, `lcResetOverrides`); aplicação de overrides em `lcSendToVMix`; CSS `.lc-props-*`.
+- **Gap sliders UI H/V** + `lcApplyGap`, `lcGetGapH/V`, `lcUpdateGapControlsUI`; HTML toolbar gap; STATE `rendererGapH`, `rendererGapV`, `gapLiveMode`.
+- **Gap visualization**: cálculo de `layerInsets[]` em `_lcRenderBoxes` (inset visual por edge).
+- **Copy Mode Toggle** (GUID/Variável) + `STATE.copyMode`, `#modeToggle`, CSS `.toggle-switch/.toggle-dot`.
+- **deck_layout_persistence**: `loadInstanceDB`, `saveInstanceDB`, campo `deckLayout` no instance model, chaves `vmix_deck_*`.
+- Feature audit tooling (`feature-audit.html`, `feature-inventory.json`) — ignorados via `.gitignore`.
+
 ## [3.1.3] — 2026-04-17
 
 ### Removed
