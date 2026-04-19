@@ -981,9 +981,14 @@ function setupGlobalEvents() {
         showToast(STATE.autoRefreshSecs > 0 ? `Auto-refresh: ${STATE.autoRefreshSecs}s` : 'Auto-refresh desligado');
     });
 
-    // --- Tab switching (Deck / Layer Control) ---
+    // --- Tab switching (Inputs / Multilayer / Anchor Slip X) ---
     document.getElementById('tabDeck')?.addEventListener('click', () => switchPanelTab('deck'));
     document.getElementById('tabLayers')?.addEventListener('click', () => switchPanelTab('layers'));
+    document.getElementById('tabAnchor')?.addEventListener('click', () => switchPanelTab('anchor'));
+
+    // --- Anchor Slip X: target selector + centralizar ---
+    document.getElementById('lcAnchorTargetBtn')?.addEventListener('click', () => lcShowInputSelector());
+    document.getElementById('lcAnchorCenter')?.addEventListener('click', () => lcAnchorResetSelected());
 
     // --- Copy history: clear button + initial render ---
     document.getElementById('copyHistoryClear')?.addEventListener('click', clearCopyHistory);
