@@ -1,5 +1,14 @@
 # Operations Log
 
+## 2026-04-19 (v4.1.4)
+- [x] Teste direto via API no Input 1 "TESTE MULTLAYER" (vMix localhost:8088) com Input 20 na L1 + CAM 02 na L2
+- [x] Confirmado empiricamente que slip puro (cropX1/X2 em paralelo sem mexer em panX) desloca a bounding box visível (L1 invade L2)
+- [x] Derivação: `panX_vmix = panX_base − 2·slipOffsetX` compensa o deslocamento e produz efeito máscara (janela fixa, conteúdo interno desliza)
+- [x] Animação ao vivo (sweep slipX=-1 ↔ +1, ciclo 4s) validou visualmente no vMix
+- [x] Fix aplicado em `lcToVMix` ([extension/lc-engine.js:216](extension/lc-engine.js#L216)) e reverse em `lcFromVMix` ([extension/lc-engine.js:279](extension/lc-engine.js#L279))
+- [x] Smoke test round-trip Node: slipX=+0.5 e slipX=-1 preservam `x`, `w` e `slipX` com 6 casas de precisão
+- [x] Release v4.1.4 publicada
+
 ## 2026-04-19 (v4.1.0)
 - [x] Mocks v1/v2/v3 validaram UX (cruz central → Transform Handles → SVG 16:9 coloridos por layer hue)
 - [x] Snap magnético no centro (threshold 0.05) + flash verde validados no mock v3

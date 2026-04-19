@@ -206,14 +206,15 @@ function lcGetRendererOffsetY() { return STATE.layerControl.rendererOffsetY ?? 0
 // Normalized (0-1) → vMix API values (pure math, no side effects)
 // Pan/Zoom computed from x,y,w,h (geometry stays intact).
 // Trim (l.trim) produces ASYMMETRIC crop — hides specific edges without moving content.
-// slipX desloca o crop em PARALELO (anchor slip) — mantém pan/zoom, move cropX1/cropX2 juntos.
+// slipX desloca o crop em PARALELO (anchor slip) e compensa panX em -2*slipOffsetX
+// para que a bounding box visível fique no mesmo lugar (efeito máscara).
 function lcToVMix(l) {
     const Z = Math.max(l.w, l.h);
-    const panX = (l.x + l.w / 2) * 2 - 1;
-    const panY = 1 - (l.y + l.h / 2) * 2;
     const baseCropX = Math.max(0, (Z - l.w) / 2 / Z);
     const baseCropY = Math.max(0, (Z - l.h) / 2 / Z);
     const slipOffsetX = (l.slipX || 0) * baseCropX;
+    const panX = (l.x + l.w / 2) * 2 - 1 - 2 * slipOffsetX;
+    const panY = 1 - (l.y + l.h / 2) * 2;
     const finalCropX1 = baseCropX + ((l.trim?.left || 0) / Z) + slipOffsetX;
     const finalCropX2 = (1 - baseCropX) - ((l.trim?.right || 0) / Z) + slipOffsetX;
     const finalCropY1 = baseCropY + ((l.trim?.top || 0) / Z);
@@ -261,6 +262,7 @@ function lcFromVMix(panX, panY, zoom, cropX1, cropY1, cropX2, cropY2) {
     const avgCropX = Math.max(0, (cropX1 + (1 - cx2)) / 2);
     const diffCropX = (cropX1 - (1 - cx2)) / 2;
     const baseCropX = avgCropX;
+    const slipOffsetX = diffCropX;
     const slipXRaw = baseCropX > 0.001 ? diffCropX / baseCropX : 0;
     const slipX = Math.max(-1, Math.min(1, slipXRaw));
     // Y — base + trim assimétrico (original)
@@ -269,7 +271,8 @@ function lcFromVMix(panX, panY, zoom, cropX1, cropY1, cropX2, cropY2) {
     const h = Z * (1 - 2 * baseCropY);
     const trimTop = (cropY1 - baseCropY) * Z;
     const trimBottom = ((1 - cy2) - baseCropY) * Z;
-    const cx = (panX + 1) / 2;
+    // Remove compensação de panX (panX do vMix = panX_base - 2*slipOffsetX).
+    const cx = (panX + 1) / 2 + slipOffsetX;
     const cy = (1 - panY) / 2;
     return {
         x: +(cx - w / 2).toFixed(6),
