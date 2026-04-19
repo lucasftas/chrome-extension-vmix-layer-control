@@ -816,7 +816,7 @@ body {
 .content-area {
     flex: 1;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     padding: 8px;
     gap: 8px;
     overflow: hidden;
@@ -833,8 +833,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    /* Takes 3 shares of content-area — inputs-panel gets 2 shares */
-    flex: 3 1 0;
+    flex: 2 1 0;
+    min-width: 360px;
     min-height: 100px;
     overflow: hidden;
     box-shadow: var(--shadow);
@@ -1030,9 +1030,10 @@ body {
     padding: 30px 20px;
 }
 
-/* INPUTS */
+/* INPUTS (coluna central) */
 .inputs-panel {
-    flex: 1;
+    flex: 1.4 1 0;
+    min-width: 280px;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -1042,6 +1043,130 @@ body {
     overflow: hidden;
     box-shadow: var(--shadow);
 }
+
+/* COPY HISTORY (coluna direita, só em modo Deck) */
+.copy-history-panel {
+    flex: 1 1 0;
+    min-width: 240px;
+    max-width: 340px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+.copy-history-panel.hidden { display: none; }
+
+.copy-history-panel .ch-header {
+    background: #1a1225;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.copy-history-panel .ch-clear {
+    background: transparent;
+    border: 1px solid #3a2f4e;
+    border-radius: 6px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: #d97706;
+    display: flex;
+    align-items: center;
+    transition: background 0.15s, color 0.15s;
+}
+.copy-history-panel .ch-clear:hover { background: rgba(239,68,68,0.15); color: #ef4444; border-color: #7a3040; }
+.copy-history-panel .ch-clear svg { width: 13px; height: 13px; }
+
+.copy-history-panel .ch-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.copy-history-panel .ch-empty {
+    padding: 20px 12px;
+    text-align: center;
+    font-size: 11px;
+    color: #9ca3af;
+    line-height: 1.5;
+}
+
+.copy-history-panel .ch-row {
+    background: #fafafa;
+    border: 1px solid #ececec;
+    border-left: 3px solid #10b981;
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    transition: border-color 0.15s, background 0.15s;
+}
+.copy-history-panel .ch-row:hover { background: #f3f4f6; border-left-color: #047857; }
+
+.copy-history-panel .ch-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: #9ca3af;
+}
+.copy-history-panel .ch-ts { font-family: Consolas, monospace; }
+.copy-history-panel .ch-num {
+    background: #7c3aed;
+    color: #fff;
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-weight: 700;
+    font-size: 10px;
+}
+
+.copy-history-panel .ch-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1a1a1a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.copy-history-panel .ch-guid {
+    font-family: Consolas, monospace;
+    font-size: 10px;
+    color: #6b7280;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.copy-history-panel .ch-recopy {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    margin-top: 4px;
+    align-self: flex-start;
+}
+.copy-history-panel .ch-recopy svg { width: 11px; height: 11px; }
+.copy-history-panel .ch-recopy:hover { background: #d97706; color: #fff; border-color: #d97706; }
 
 .inputs-info-bar {
     background: #f9fafb;
@@ -1429,10 +1554,6 @@ body {
     box-shadow: none;
 }
 
-/* Inputs panel: give it 2 shares (vs deck's 3) */
-.inputs-panel {
-    flex: 2 1 0;
-}
 
 /* =============================================
    MODAL SYSTEM
