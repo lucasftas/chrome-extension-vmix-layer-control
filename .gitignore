@@ -29,3 +29,6 @@ vmix-layer-control-v*.zip
 # Feature audit tooling (geração one-shot, não é código de produção)
 feature-audit.html
 feature-inventory.json
+
+# UX mocks (pasta de trabalho — validação visual antes de implementar)
+mocks/
