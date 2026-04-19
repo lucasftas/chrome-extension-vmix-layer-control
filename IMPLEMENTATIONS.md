@@ -1,5 +1,65 @@
 # Implementations
 
+## v4.1.0 — 2026-04-19
+
+### Nova feature: Anchor Slip X
+
+Terceira aba dedicada a reenquadramento por deslizamento de crop. O insight técnico é que para "mover o conteúdo dentro de uma layer sem mover a layer", basta deslocar `cropX1` e `cropX2` **em paralelo** (mesmo delta nos dois). O `panX`/`panY`/`zoom` permanecem intocados.
+
+#### Modelo e matemática
+
+Novo campo `slipX` no layer model (range -1..+1, 0 = centro). Em `lcToVMix`:
+
+```js
+slipOffset = slipX * baseCropX
+cropX1_sent = baseCropX + trim.left/Z + slipOffset
+cropX2_sent = (1 - baseCropX) - trim.right/Z + slipOffset
+```
+
+O range útil é `±baseCropX`, que depende da relação `w/Z`. Para preset 50/50 (`w=0.5, h=1`, `Z=1`, `baseCropX=0.25`), o usuário pode deslizar 25% em cada direção. Para layers sem crop (quadradas), `baseCropX=0` e slip não tem efeito — a função `lcAnchorHasSlipRange()` testa isso.
+
+No pull (`lcFromVMix`), a heurística média/diff separa base de offset:
+
+```js
+baseCropX = (cropX1 + (1 - cropX2)) / 2   // geometria
+slipX     = (cropX1 - (1 - cropX2)) / (2 * baseCropX)  // offset paralelo
+trim.left = trim.right = 0  // slip priority em X
+```
+
+Round-trip verificado em smoke test: preset 50/50 + slipX=0.5 → envia cropX1=0.375, cropX2=0.875 → pull retorna w=0.5 e slipX=0.5 (diff zero).
+
+#### Renderização do canvas
+
+- `#anchorCanvas` dedicado, não reusa `#layerCanvas` (evita conflito de event listeners).
+- Cada layer-box renderiza um SVG `2x` mais largo que a layer visível (`Z * cW`), posicionado com `left = -(1 + slipX) * baseCropX * cW`. Isso faz o conteúdo "deslizar" conforme o slipX muda.
+- SVG template (`lcAnchorBuildTextureSVG(hue)`) usa HSL com hue derivado da `LAYER_HUES` — paleta fixa casada com `LC_COLORS`.
+- Layer selecionada ganha **Transform Handles** (8 alças, E/W destacadas em laranja) + **Ghost Texture** (mesma SVG em opacidade 0.32, transbordando o canvas pelo `.anchor-canvas-wrapper { overflow: visible }` + padding de 60px vertical).
+
+#### Drag
+
+`_lcDrag` ganhou tipo `'anchor'`. Handlers globais de mousemove/mouseup tratam o tipo antes dos ramos existentes `'free'`/`'snap'`. Características:
+
+- Cálculo simples: `delta = (dx / boxWpx) * 2`; clamp -1..+1.
+- **Snap magnético**: se `|newSlip| < 0.05` força 0. Campo `_lcDrag.justSnapped` evita flash repetido.
+- **Flash verde** (`.snapped` CSS + 400ms timeout) quando o snap aciona.
+- **Info ao vivo** na toolbar (`#lcAnchorInfo`) reflete slipX e estado (colado/no limite).
+- **Envio ao vMix só no release** (`lcSendToVMix` só no `mouseup`, com `lcPushUndo` antes). Durante o drag, só re-render local.
+
+#### Integração compartilhada
+
+- `STATE.layerControl` (mesmo `targetInputKey`, mesmo array de 10 `layers`).
+- `lcShowInputSelector` atualiza label em ambos os botões (`#lcTargetLabel` do Multilayer + `#lcAnchorTargetLabel` do Anchor).
+- `lcStartSync` polling roda também em aba `anchor`.
+- `lcFetchInputLayers` popula `ov.slipX` via `lcFromVMix`, e `_posSet` é respeitado.
+- `lcRenderLayerList(containerId)` parametrizada — chamada com `'anchorLayerList'` ou `'layerList'` conforme aba.
+- Ctrl+Z/Y propagados (condição `activeTab === 'layers' || 'anchor'`).
+
+#### Testes realizados
+
+- `node -c` em app.js e lc-engine.js após cada fase.
+- Smoke test da matemática em Node (preset 50/50 + slipX=0.5, round-trip zero diff).
+- 10 commits granulares na branch `feat/v4-anchor-slip-x`.
+
 ## v4.0.1 — 2026-04-19
 
 ### UX polish pós-v4.0.0

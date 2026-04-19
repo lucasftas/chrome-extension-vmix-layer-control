@@ -1,5 +1,21 @@
 # Operations Log
 
+## 2026-04-19 (v4.1.0)
+- [x] Mocks v1/v2/v3 validaram UX (cruz central → Transform Handles → SVG 16:9 coloridos por layer hue)
+- [x] Snap magnético no centro (threshold 0.05) + flash verde validados no mock v3
+- [x] Plano escrito e aprovado (10 fases, arquivos-alvo, utilitários reusáveis mapeados)
+- [x] Branch `feat/v4-anchor-slip-x` criada
+- [x] Fase 1: slipX no layer model + lcToVMix/lcFromVMix round-trip (smoke test Node passou)
+- [x] Fase 2: constantes LC_ANCHOR_*, LAYER_HUES, lcAnchorBuildTextureSVG (grid A1-I16 cached)
+- [x] Fase 3: 3ª deck-tab + #anchorContent clonado de layer-content com toolbar enxuta
+- [x] Fase 4: switchPanelTab aceita 'anchor'; classe .mode-anchor no content-area
+- [x] Fase 5: canvas dedicado (#anchorCanvas) + fit 16:9 + ResizeObserver + render de boxes/ghost/handles
+- [x] Fase 6: _lcDrag type 'anchor' + snap + flash + envio só no release
+- [x] Fase 7: tabAnchor handler + lcAnchorTargetBtn reusa lcShowInputSelector + botão Centralizar
+- [x] Fase 8: CSS ~190 linhas (anchor-* + transform-handles + keyframes)
+- [x] Fase 9: manifest 4.0.1 → 4.1.0, description atualizada
+- [x] Fase 10: merge feat/v4-anchor-slip-x em main, release v4.1.0 publicada com zip
+
 ## 2026-04-19 (v4.0.1)
 - [x] Feedback inicial: aba "Deck" confusa após remoção do grid. Renomeada para "Inputs".
 - [x] Primeira tentativa de layout por aba: DOM swap do inputs-panel → descartada (mal concebida).
