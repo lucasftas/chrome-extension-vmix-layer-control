@@ -84,6 +84,7 @@ body {
     font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
     height: 100vh;
     overflow: hidden;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -709,6 +710,18 @@ body {
     gap: 6px;
     flex-shrink: 0;
 }
+
+.privacy-link {
+    display: block;
+    text-align: center;
+    margin-top: 10px;
+    font-size: 10px;
+    color: #555;
+    text-decoration: none;
+    letter-spacing: 0.4px;
+    transition: color 0.2s;
+}
+.privacy-link:hover { color: #888; }
 
 .sidebar-ctrl {
     display: flex;
@@ -1727,6 +1740,7 @@ body {
     color: #bbb;
     font-size: 16px;
     font-weight: bold;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -1793,6 +1807,7 @@ body {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0);
+    -webkit-backdrop-filter: blur(0px);
     backdrop-filter: blur(0px);
     display: flex;
     align-items: center;
@@ -1803,6 +1818,7 @@ body {
 
 .modal-overlay.visible {
     background: rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
 }
 
@@ -1918,6 +1934,7 @@ body {
     background: #f3f3f3;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
+    -webkit-user-select: none;
     user-select: none;
 }
 

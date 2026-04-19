@@ -2,7 +2,7 @@
 
 > Extensão Chrome para controle visual em tempo real de **inputs, multilayer e anchor slip** do vMix — toda a orquestração da sua live ao lado do browser.
 
-![Version](https://img.shields.io/badge/version-4.1.9-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-4.2.0-brightgreen.svg)
 ![vMix](https://img.shields.io/badge/vMix_29-Compatível-orange.svg)
 ![Chrome](https://img.shields.io/badge/Chrome-Extension_MV3-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -13,7 +13,7 @@
 
 <div align="center">
 
-### [⬇️ Baixar v4.1.9 (instalação sem compactação)](https://github.com/lucasftas/chrome-extension-vmix-layer-control/releases/download/v4.1.9/vmix-layer-control-v4.1.9.zip)
+### [⬇️ Baixar v4.2.0 (instalação sem compactação)](https://github.com/lucasftas/chrome-extension-vmix-layer-control/releases/download/v4.2.0/vmix-layer-control-v4.2.0.zip)
 
 **[📋 Ver todas as releases](https://github.com/lucasftas/chrome-extension-vmix-layer-control/releases)**
 
@@ -24,8 +24,8 @@
 ## 🚀 Como Instalar no Chrome
 
 ### Passo 1 · Baixar e extrair
-1. Clique no botão **⬇️ Baixar v4.1.9** acima
-2. Salve o arquivo `vmix-layer-control-v4.1.9.zip` em uma pasta fixa (ex: `C:\Tools\vmix-layer-control\`)
+1. Clique no botão **⬇️ Baixar v4.2.0** acima
+2. Salve o arquivo `vmix-layer-control-v4.2.0.zip` em uma pasta fixa (ex: `C:\Tools\vmix-layer-control\`)
 3. Clique com o botão direito no zip → **Extrair tudo** → confirme
 
 > 💡 **Importante:** não apague nem mova a pasta depois de carregar no Chrome — a extensão aponta pra esse caminho físico.
@@ -58,7 +58,7 @@ Três abas em uma única extensão, cada uma com tema visual próprio:
 
 ### 🟣 Aba **Inputs** — catálogo de GUIDs
 - **Lista completa** de inputs do vMix com drag, click e contextmenu
-- **Modo Grupos** (novo em v4.1.9): agrupa por tipo (Capture, Cor, Mic, Vídeo, …) com headers coloridos colapsáveis
+- **Modo Grupos** (novo em v4.2.0): agrupa por tipo (Capture, Cor, Mic, Vídeo, …) com headers coloridos colapsáveis
 - **Filtros** por tipo + busca textual por nome
 - **Copy GUID** (click) ou **Copy Variável de Título** (contextmenu) — formato pronto pra colar no Bitfocus Companion
 - **Painel Histórico** (colapsado por padrão) — últimas 50 cópias com recopy rápido
