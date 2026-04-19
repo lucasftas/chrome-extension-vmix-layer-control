@@ -3,6 +3,12 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.6] — 2026-04-19
+
+### Changed
+- `switchPanelTab`: ao entrar em Multilayer ou Anchor, espelha o `targetInputKey` da aba oposta (se definido) e **reseta `_posSet=false`** em todas as layers da aba-destino, forçando pull fresh do vMix.
+- Efeito: selecionar um input no Multilayer e trocar pro Anchor mantém a seleção; aplicar um preset 33/66 no Multilayer e voltar pro Anchor reflete a nova geometria imediatamente.
+
 ## [4.1.5] — 2026-04-19
 
 ### Added
