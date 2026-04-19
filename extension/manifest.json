@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
     "name": "vMix Layer Control",
-    "version": "3.1.0",
-    "description": "Controle visual de layers e multiview ao vivo para vMix — grid de botões, editor de layers e integração com Companion",
+    "version": "4.0.1",
+    "description": "Controle visual de layers e multiview ao vivo para vMix — lista de inputs com histórico de cópias e editor de multilayer",
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
