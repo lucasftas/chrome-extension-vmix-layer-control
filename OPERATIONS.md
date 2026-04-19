@@ -1,5 +1,11 @@
 # Operations Log
 
+## 2026-04-19 (v4.1.7)
+- [x] Removidas as chamadas `lcThrottleSend` durante mousemove no Multilayer (ramos `free` e `snap`)
+- [x] Mouseup continua enviando `lcSendToVMix` (já despachava antes) — nenhum envio perdido
+- [x] Comportamento unificado com Anchor Slip X (dispatch só no release)
+- [x] Release v4.1.7 publicada
+
 ## 2026-04-19 (v4.1.6)
 - [x] UX refinement: sincronizar targetInputKey entre abas ao trocar de aba (one-way mirror)
 - [x] Reset `_posSet=false` em todas as layers da aba-destino pra forçar fetch completo do vMix
