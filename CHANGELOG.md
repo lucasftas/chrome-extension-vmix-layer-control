@@ -3,6 +3,33 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.1.0] — 2026-04-19
+
+### Added
+- **Nova aba "Anchor Slip X"** (3ª tab): desliza a âncora do crop horizontalmente dentro de cada layer mantendo a layer no mesmo lugar do canvas. Efeito máscara — só `cropX1`/`cropX2` movem em paralelo.
+- Campo `slipX` (-1..+1) no modelo da layer (`lcMakeLayer`).
+- `LAYER_HUES[10]` (hue HSL por índice derivado de `LC_COLORS`): Layer 1 → 240 (azul), Layer 2 → 0 (vermelho), ...
+- `lcAnchorBuildTextureSVG(hue)` gera SVG de referência 16:9 (grid A1–I16, cruz central, diagonais) tingido por layer.
+- `lcAnchorRender`, `lcAnchorRenderCanvas`, `lcAnchorRenderOverlay` — render dedicado do canvas anchor.
+- `lcAnchorFitCanvas`, `lcAnchorStartResizeObserver` — equivalentes do multilayer apontando para `#anchorCanvas`.
+- `lcAnchorShowWelcome` — placeholder quando sem input-alvo.
+- `lcAnchorStartDrag`, `lcAnchorReset`, `lcAnchorResetSelected` — drag horizontal com snap no centro + reset.
+- `_lcDrag` ganha tipo `'anchor'`; mousemove/mouseup globais tratam o tipo separadamente.
+- Constantes: `LC_ANCHOR_SNAP_THRESHOLD` (0.05), `LC_ANCHOR_NEAR_EDGE` (0.75), `LC_ANCHOR_AT_EDGE` (0.92).
+- CSS: `.anchor-*`, `.ghost-texture`, `.transform-handles` + 8 `.handle` (E/W destacadas), `.near-edge`, `.at-edge`, `.snapped`, keyframes `anchor-pulse-red` e `anchor-snap-flash`.
+
+### Changed
+- `lcToVMix`: incorpora `slipX * baseCropX` em `cropX1` e `cropX2` (paralelo).
+- `lcFromVMix`: heurística média/diff separa `baseCropX` de `slipX` (trim.left/right zerados no pull — slip tem prioridade em X).
+- `lcSnapshotState` / `lcRestoreSnapshot`: incluem `slipX`; restore escolhe entre `lcRender` e `lcAnchorRender` baseado em `STATE.activeTab`.
+- `lcApplyPreset`: zera `slipX` junto com trim.
+- `lcFetchInputLayers` + `lcSyncFromVMix`: aplicam `ov.slipX`.
+- `lcRenderLayerList` / `lcUpdateRowVisuals`: aceitam `containerId` opcional (default `'layerList'`).
+- `lcShowInputSelector`: atualiza label em ambas as abas; escolhe render baseado na aba ativa.
+- `switchPanelTab` aceita `'anchor'`; classe `.mode-anchor` no `.content-area`; polling `lcStartSync` roda também em anchor.
+- Ctrl+Z/Y funcionam em aba `anchor`.
+- `manifest.json`: version 4.0.1 → 4.1.0; description menciona Anchor Slip X.
+
 ## [4.0.1] — 2026-04-19
 
 ### Added
