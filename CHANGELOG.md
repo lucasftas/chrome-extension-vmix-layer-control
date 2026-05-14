@@ -3,6 +3,42 @@
 Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [4.3.0] — 2026-05-14 · Aba Companion (Card Builder)
+
+Adiciona uma quarta aba à extensão: **Companion Generator**. Cria botões para Bitfocus Companion (v4.2.6+) a partir de um *card builder* visual, exportando `.companionconfig` pronto para importar.
+
+### Added
+- **Aba "Companion"** com tema azul (4ª cor após Inputs roxo / Multilayer laranja / Anchor verde).
+- **Card Builder** (painel 480px à esquerda) com 6 botões coloridos pra criar cards por tipo:
+  - **Cut** — `programCut` + feedback `inputLive` (verde quando PGM).
+  - **Audio** — `audio` (functionID `Audio`) + `audioBus` (Master configurável A-G) + feedbacks `inputAudio` (vermelho mute, isInverted) + `inputVolumeMeter`.
+  - **Output** — `outputSet` (functionID `SetOutputFullscreen`, value `Input`).
+  - **Mix** — `programCut` mix N (1-15) + feedback `inputLive` mix N (vermelho escuro).
+  - **Layer** — `setMultiViewOverlay` com toggle ⚡ **Rápido** (1 ação: Target Input + Layer N + Source) ou ▦ **Layout** (1 Target + N slots, cada com layer 1-10 + source).
+  - **Slide** — par `previousPicture` + `nextPicture` (sync de input automático, ocupa 2 cells lado a lado).
+- **Grid 4×8** à direita: drag de cards válidos pra cells; cells mostram chip, label `Nome\n[N]` e marcador 🔗 se linked.
+- **3 modos de card** com tooltip rico: **📋 Clone** (default, snapshot independente), **🎯 One-shot** (consome card no drop), **🔗 Linked** (sync — editar card propaga pras cells).
+- **Dropzones por campo**: drag de input vMix do panel inferior preenche pill colorida com `[N]` + nome + 8 chars de GUID + botão ✕.
+- **Dropdown Target Default** lista qualquer input vMix (não só MultiView — qualquer input suporta até 10 layers conforme [doc oficial](https://www.vmix.com/help26/InputSettingsMultiView.html)).
+- **Validação strict**: card com dropzone vazia tem borda vermelha + bloqueado de drag pro grid; toolbar **Validar** dispara check global.
+- **Lápis ✎ na cell**: clone — devolve card pro painel pra edição; linked — scroll/highlight do card original.
+- **Modal de delete pra card linked** com 3 opções: Cancelar, Manter cells (vira clone), Deletar tudo.
+- **Page number configurável** (default 10): output JSON gera **uma única página** com esse número.
+- **Export `.companionconfig`** real via Blob+download, filename `vmix-buttons_YYYYMMDD-HHMM.companionconfig`.
+- **Persistência** em `chrome.storage.local` key `vmix_companion_state_v2`.
+- **Hardcoded D4** connectionId `2e-JDhjjo8EG2rBi1ykoQ` (instância vMix do PC editor D4 do Lucas).
+
+### Technical
+- Novo arquivo `extension/companion-builder.js` (~900 LOC). Reusa `showToast`/`showModal`/`closeModal`/`getIcon` de `app.js` + dragstart do `_buildInputCard` sem mudar a sidebar.
+- `STATE.companion` adicionado a `app.js` (cards array + cells flat keyed `r:c`).
+- CSS scoped `#companionContent` (~400 linhas) + tema `.theme-companion` azul.
+- Action schema validado contra o módulo oficial [studiocoast-vmix](https://github.com/bitfocus/companion-module-studiocoast-vmix).
+
+### Changed
+- `manifest.json` bump 4.2.0 → 4.3.0; description estendida.
+- `app.js` `switchPanelTab(tab)` aceita `'companion'`; `restoreSettings()` chama `companionRestore()`.
+- Index script order: `lc-engine.js` → `companion-builder.js` → `app.js`.
+
 ## [4.2.0] — 2026-04-19 · Versão estável final
 
 Consolida a série 4.1.4 → 4.2.0 numa release de produção. Semver minor bump motivado pela adição do **Modo "Grupos"** na aba Inputs (feature nova).

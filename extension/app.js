@@ -71,6 +71,17 @@ const STATE = {
         targetInputKey: null,
         targetInputTitle: '',
         _syncTimer: null
+    },
+    // Aba Companion Generator (v2 — Card Builder): cards reusáveis na esquerda,
+    // grid 4×8 na direita. Cell aponta pra cardId via clone (snapshot) ou linked (sync).
+    // Single page only.
+    companion: {
+        pageNum: 10,                   // página única gerada no Companion
+        defaultTargetKey: null,        // input default usado em novos cards Layer
+        cards: [],                     // array de cards reusáveis
+        cells: {},                     // cells da única página, keyed "r:c"
+        _connectionId: '2e-JDhjjo8EG2rBi1ykoQ', // vMix_D4 hardcoded
+        _build: '4.2.6+8823-stable-4ecdfe70ba'
     }
 };
 
@@ -693,6 +704,7 @@ function renderMainInterface() {
                         <button class="deck-tab active" id="tabDeck">${getIcon('layers')} Inputs</button>
                         <button class="deck-tab" id="tabLayers">${getIcon('grid')} Live MultiLayer Editor</button>
                         <button class="deck-tab" id="tabAnchor">${getIcon('anchor')} Anchor Slip X</button>
+                        <button class="deck-tab" id="tabCompanion">${getIcon('grid')} Companion</button>
                     </div>
                     <div class="layer-content hidden" id="layerContent">
                         <div class="lc-slip-warning hidden" id="lcSlipWarning" title="Este input tem layers com slipX aplicado pela aba Anchor. Aplicar um preset aqui vai centralizar o slip de volta para zero.">
@@ -765,6 +777,7 @@ function renderMainInterface() {
                             </div>
                         </div>
                     </div>
+                    <div class="layer-content hidden" id="companionContent"></div>
                 </div>
 
                 <!-- INPUTS (embaixo sempre; altura depende da aba via CSS .mode-*) -->
@@ -1057,10 +1070,11 @@ function setupGlobalEvents() {
         showToast(STATE.autoRefreshSecs > 0 ? `Auto-refresh: ${STATE.autoRefreshSecs}s` : 'Auto-refresh desligado');
     });
 
-    // --- Tab switching (Inputs / Multilayer / Anchor Slip X) ---
+    // --- Tab switching (Inputs / Multilayer / Anchor Slip X / Companion) ---
     document.getElementById('tabDeck')?.addEventListener('click', () => switchPanelTab('deck'));
     document.getElementById('tabLayers')?.addEventListener('click', () => switchPanelTab('layers'));
     document.getElementById('tabAnchor')?.addEventListener('click', () => switchPanelTab('anchor'));
+    document.getElementById('tabCompanion')?.addEventListener('click', () => switchPanelTab('companion'));
 
     // --- Anchor Slip X: target selector (independente) + centralizar ---
     document.getElementById('lcAnchorTargetBtn')?.addEventListener('click', () => lcAnchorShowInputSelector());
@@ -1867,6 +1881,7 @@ function showToast(msg) {
 
 function restoreSettings() {
     setupAutoRefresh();
+    if (typeof companionRestore === 'function') companionRestore();
 }
 
 // =============================================
@@ -1878,33 +1893,41 @@ function switchPanelTab(tab) {
     const tabDeck = document.getElementById('tabDeck');
     const tabLayers = document.getElementById('tabLayers');
     const tabAnchor = document.getElementById('tabAnchor');
+    const tabCompanion = document.getElementById('tabCompanion');
     const layerContent = document.getElementById('layerContent');
     const anchorContent = document.getElementById('anchorContent');
+    const companionContent = document.getElementById('companionContent');
     if (!tabDeck) return;
     tabDeck.classList.toggle('active', tab === 'deck');
     tabLayers.classList.toggle('active', tab === 'layers');
     tabAnchor?.classList.toggle('active', tab === 'anchor');
+    tabCompanion?.classList.toggle('active', tab === 'companion');
     layerContent?.classList.toggle('hidden', tab !== 'layers');
     anchorContent?.classList.toggle('hidden', tab !== 'anchor');
+    companionContent?.classList.toggle('hidden', tab !== 'companion');
 
     // Classe no content-area controla o layout:
     //   .mode-inputs: deck-panel colapsa só às tabs, inputs-panel preenche abaixo, histórico à direita
-    //   .mode-layers / .mode-anchor: deck-panel ocupa o topo com layer/anchor-content, inputs-panel embaixo
+    //   .mode-layers / .mode-anchor / .mode-companion: deck-panel ocupa o topo com conteúdo da aba, inputs-panel embaixo
     const contentArea = document.querySelector('.content-area');
     if (contentArea) {
         contentArea.classList.toggle('mode-inputs', tab === 'deck');
         contentArea.classList.toggle('mode-layers', tab === 'layers');
         contentArea.classList.toggle('mode-anchor', tab === 'anchor');
+        contentArea.classList.toggle('mode-companion', tab === 'companion');
     }
 
     // Copy History visível apenas no modo Inputs
     const historyPanel = document.getElementById('copyHistoryPanel');
     if (historyPanel) historyPanel.classList.toggle('hidden', tab !== 'deck');
 
-    // Theme switching (deck=roxo, layers=laranja, anchor=verde)
+    // Theme switching (deck=roxo, layers=laranja, anchor=verde, companion=azul)
     const root = document.getElementById('app-root');
     if (root) {
-        const theme = tab === 'deck' ? 'theme-deck' : (tab === 'anchor' ? 'theme-anchor' : 'theme-layers');
+        const theme = tab === 'deck' ? 'theme-deck'
+            : tab === 'anchor' ? 'theme-anchor'
+            : tab === 'companion' ? 'theme-companion'
+            : 'theme-layers';
         root.className = theme;
     }
 
@@ -1948,6 +1971,11 @@ function switchPanelTab(tab) {
         lcStartSync();
         lcAnchorStopSync();
         lcStartResizeObserver();
+    } else if (tab === 'companion') {
+        lcStopSync();
+        lcAnchorStopSync();
+        if (typeof companionEnsureMounted === 'function') companionEnsureMounted();
+        else if (typeof companionRender === 'function') companionRender();
     } else if (tab === 'anchor') {
         if (!STATE.anchorControl.targetInputKey) {
             lcAnchorShowWelcome();

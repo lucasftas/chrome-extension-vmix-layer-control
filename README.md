@@ -2,7 +2,7 @@
 
 > Extensão Chrome para controle visual em tempo real de **inputs, multilayer e anchor slip** do vMix — toda a orquestração da sua live ao lado do browser.
 
-![Version](https://img.shields.io/badge/version-4.2.0-brightgreen.svg)
+![Version](https://img.shields.io/badge/version-4.3.0-brightgreen.svg)
 ![vMix](https://img.shields.io/badge/vMix_29-Compatível-orange.svg)
 ![Chrome](https://img.shields.io/badge/Chrome-Extension_MV3-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -13,7 +13,7 @@
 
 <div align="center">
 
-### [⬇️ Baixar v4.2.0 (instalação sem compactação)](https://github.com/lucasftas/chrome-extension-vmix-layer-control/releases/download/v4.2.0/vmix-layer-control-v4.2.0.zip)
+### [⬇️ Baixar v4.3.0 (instalação sem compactação)](https://github.com/lucasftas/chrome-extension-vmix-layer-control/releases/download/v4.3.0/vmix-layer-control-v4.3.0.zip)
 
 **[📋 Ver todas as releases](https://github.com/lucasftas/chrome-extension-vmix-layer-control/releases)**
 
@@ -24,8 +24,8 @@
 ## 🚀 Como Instalar no Chrome
 
 ### Passo 1 · Baixar e extrair
-1. Clique no botão **⬇️ Baixar v4.2.0** acima
-2. Salve o arquivo `vmix-layer-control-v4.2.0.zip` em uma pasta fixa (ex: `C:\Tools\vmix-layer-control\`)
+1. Clique no botão **⬇️ Baixar v4.3.0** acima
+2. Salve o arquivo `vmix-layer-control-v4.3.0.zip` em uma pasta fixa (ex: `C:\Tools\vmix-layer-control\`)
 3. Clique com o botão direito no zip → **Extrair tudo** → confirme
 
 > 💡 **Importante:** não apague nem mova a pasta depois de carregar no Chrome — a extensão aponta pra esse caminho físico.
@@ -54,7 +54,7 @@ A extensão aparece na barra de ferramentas com o ícone `v` em roxo. Fixe clica
 
 ## 🎯 O que faz
 
-Três abas em uma única extensão, cada uma com tema visual próprio:
+Quatro abas em uma única extensão, cada uma com tema visual próprio:
 
 ### 🟣 Aba **Inputs** — catálogo de GUIDs
 - **Lista completa** de inputs do vMix com drag, click e contextmenu
@@ -85,11 +85,21 @@ Três abas em uma única extensão, cada uma com tema visual próprio:
 - **Duplo-click** ou **Centralizar** para reset rápido
 - **Envio só no release** — zero tráfego durante drag
 
+### 🔵 Aba **Companion** — gerador de botões Bitfocus Companion (novo em v4.3.0)
+- **Card Builder** à esquerda + grid 4×8 à direita
+- 6 tipos de card coloridos: **Cut**, **Audio** (mute + meter), **Output** (fullscreen), **Mix** (cut N), **Layer** (set MultiViewOverlay), **Slide** (par Prev/Next)
+- **Layer** com toggle ⚡ **Rápido** (1 ação) ou ▦ **Layout** (multi-slot, 1 target + N layers)
+- **Dropzones por campo**: arraste input vMix → pill com `[N]` + nome + GUID (8 chars) + botão X
+- **3 modos por card**: 📋 Clone (snapshot independente) · 🎯 One-shot (consome ao soltar) · 🔗 Linked (sync ao editar)
+- **Validação strict**: card incompleto = borda vermelha + drag bloqueado
+- **Export `.companionconfig`** real → File → Import no Bitfocus Companion 4.2.6+
+- ConnectionId hardcoded `vMix_D4` (`2e-JDhjjo8EG2rBi1ykoQ`)
+
 ### Integração entre abas
 - **Target compartilhado**: ao trocar de aba, o input selecionado é preservado
 - **Badge `SLIP`** na row da layer quando `slipX ≠ 0` (visível nas duas abas)
 - **Tarja de warning** no Multilayer quando o target tem slip ativo — avisa que aplicar preset zera
-- **Temas por aba**: Inputs roxo, Multilayer laranja, Anchor verde
+- **Temas por aba**: Inputs roxo, Multilayer laranja, Anchor verde, Companion azul
 
 ---
 
