@@ -1,5 +1,71 @@
 # Implementations
 
+## v4.3.0 — 2026-05-14 · Aba Companion (Card Builder)
+
+Quarta aba na extensão. Gera botões para Bitfocus Companion via card builder visual. Output: `.companionconfig` v4.2.6 pronto pra File → Import.
+
+### Arquitetura
+
+- **Frontend único**: `extension/companion-builder.js` (~900 LOC). Globals expostos (`companionEnsureMounted`, `companionRender`, `companionPersist`, etc) seguindo o pattern do `lc-engine.js`. Sem imports/build step — vanilla JS.
+- **Estado** em `STATE.companion` (app.js): `{pageNum, defaultTargetKey, cards: [], cells: {}, _connectionId, _build}`. Cards são reusáveis; cells (keyed `r:c`) apontam pra cardId via clone (`snapshot`) ou linked (lookup live).
+- **Storage**: `chrome.storage.local` key `vmix_companion_state_v2`. Restore async no `restoreSettings()`.
+
+### Card schema por tipo
+
+| Tipo | Action(s) | Feedback(s) | Extras |
+|------|-----------|-------------|--------|
+| **Cut** | `programCut` mix 0 | `inputLive` mix 0 bg verde | — |
+| **Audio** | `audio` (Audio) + `audioBus` (AudioBus) | `inputAudio` + `inputVolumeMeter` | bus seletor (Master/A-G), bg vermelho |
+| **Output** | `outputSet` (SetOutputFullscreen, value Input) | — | functionID seletor (Fullscreen/2/3/4) |
+| **Mix** | `programCut` mix N | `inputLive` mix N bg vermelho escuro | mixN 1–15 |
+| **Layer** ⚡Rápido | `setMultiViewOverlay` 1× | — | target + layer + source |
+| **Layer** ▦Layout | `setMultiViewOverlay` N× | — | target global + N slots (cada layer 1–10 + source) |
+| **Slide** | `previousPicture` + `nextPicture` (par) | — | input único compartilhado, ocupa 2 cells |
+
+### Discovery vMix MultiView
+
+Pre-implementação assumia tipo de input "MultiView" exclusivo (filtrava dropdown `rawType==='MultiView'`). Doc oficial [vMix help26 Layers/MultiView](https://www.vmix.com/help26/InputSettingsMultiView.html) confirma: **qualquer** input vMix suporta até 10 layers (tab "Layers / Multi View" nas settings). Limite só de aninhamento (2 níveis). Fix: dropzone Layer aceita qualquer input.
+
+### Action schema (studiocoast-vmix)
+
+Validado contra [companion-module-studiocoast-vmix/src/actions/](https://github.com/bitfocus/companion-module-studiocoast-vmix/tree/main/src/actions):
+- `setMultiViewOverlay` opts: `{input: targetGUID, layer: 1-10, layerInput: sourceGUID}`.
+- `outputSet` opts: `{functionID: 'SetOutputFullscreen', value: 'Input', input, mix: 0, mixVariable: ''}`.
+- `audio` + `audioBus` cobrem mute toggle padrão broadcast (action dupla single-step).
+- ConnectionId hardcoded `2e-JDhjjo8EG2rBi1ykoQ` (vMix_D4 da config do Lucas). Output JSON tem `instances: {}` vazio — Companion casa pelo ID no import.
+
+### UX — Card Builder pane
+
+- 6 botões coloridos no header (`+ Cut / + Audio / + Output / + Mix / + Layer / + Slide`).
+- Lista vertical scroll.
+- **3 modos** togláveis por card (chip à direita do título):
+  - 📋 **Clone** (default) — drop = cópia. Edits depois não afetam cells.
+  - 🎯 **One-shot** — drop consome card (some do painel).
+  - 🔗 **Linked** — drop = vínculo. Edits no card propagam em todas cells em tempo real.
+- Tooltip rico no chip explica os 3 modos.
+- Validate strict: card com dropzone vazia → borda vermelha + drag bloqueado.
+- Duplicate (⎘) + Delete (✕) por card. Delete em modo Linked com cells abre modal de 3 opções (Cancelar / Manter cells / Deletar tudo).
+- **Lápis ✎** na cell:
+  - Clone → devolve snapshot pro painel como novo card (limpa cell).
+  - Linked → scroll + highlight no card original.
+
+### UX — Grid
+
+- Single page (configurável via input `Page number`). 32 cells 4×8 livres (sem nav buttons).
+- Drop card válido na cell. Tipo Slide reserva col + col+1 (par); bloqueia col 7.
+- Delete cell P verifica `cardId` da adjacente antes de deletar (não apaga vizinho não-par).
+- JSON export skipa cells com card inválido (count exibido).
+
+### Mudanças cross-arquivo
+
+| Path | Mudança |
+|------|---------|
+| `extension/manifest.json` | Version 4.3.0; description; `companion-builder.js` em `web_accessible_resources` |
+| `extension/index.html` | `<script src="companion-builder.js">` entre lc-engine e app |
+| `extension/app.js` | `STATE.companion` field; `tabCompanion` button + listener; `switchPanelTab('companion')` branch (theme `.theme-companion`); `restoreSettings` chama `companionRestore` |
+| `extension/style.css` | `.theme-companion` (accent #3b82f6) + bloco scoped `#companionContent` (~400 linhas) |
+| `extension/companion-builder.js` | Novo (~900 LOC) |
+
 ## v4.2.0 — 2026-04-19 · Release estável final
 
 Consolida o ciclo v4.1.4–v4.2.0 numa versão de produção. Semver minor bump pela adição do Modo "Grupos" na aba Inputs. Também inclui fix CSP crítico (handler inline bloqueado pelo Manifest V3) descoberto pós v4.1.9. Três eixos de mudança:

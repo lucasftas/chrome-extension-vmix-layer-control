@@ -1,5 +1,22 @@
 # Operations Log
 
+## 2026-05-14 (v4.3.0) — Aba Companion (Card Builder)
+- [x] Análise do `.companionconfig` de referência (7.4MB, 14757 linhas) — catalogados patterns vMix studiocoast usados no setup atual do Lucas: programCut, audio + audioBus, outputSet, transitionMix, previousPicture/nextPicture, overlayFunctions, setMultiViewOverlay
+- [x] Discovery: tipo "MultiView" não existe como input dedicado no vMix 29 — qualquer input tem até 10 layers (doc oficial help26)
+- [x] Validação da action `setMultiViewOverlay` no source do módulo bitfocus/companion-module-studiocoast-vmix: opts `{input, layer, layerInput}`
+- [x] Mock v1 funcional (`mocks/aba-companion.html`): drag input direto pro grid; 6 tipos com chip cyclável; persist localStorage; export Blob real
+- [x] Mock v2 funcional (`mocks/aba-companion-v2.html`): Card Builder esquerda + Grid direita; dropzones por campo; toggle modo Layer Rápido/Layout
+- [x] Fix mock v2: dropdown Target aceita QUALQUER input (não filtrar `rawType==='MultiView'`)
+- [x] Port v2 pra extension: `extension/companion-builder.js` (~900 LOC), CSS scoped, app.js wiring, manifest 4.3.0
+- [x] STATE.companion refatorado: cards[] + cells{} flat; cards reusáveis via Clone/One-shot/Linked
+- [x] Validação strict: card inválido = borda vermelha + drag bloqueado
+- [x] Modal 3-opção pra delete de card linked
+- [x] Bug fix: delete cell P apagava vizinho não-par — agora valida cardId antes
+- [x] Bug fix: par Slide na (3,6)+(3,7) conflitava com nav Next — removido sistema multi-page completo por decisão do user, single page only
+- [x] Bug fix: COMP_NAV_BG dead code removido
+- [x] Layout 480px Card Builder + flex Grid, theme `.theme-companion` azul
+- [x] Release v4.3.0
+
 ## 2026-04-19 (v4.2.0) — Release estável final
 - [x] Fix CSP crítico: handlers inline `onmouseover`/`onmouseout` no link Privacy Policy bloqueados pelo Manifest V3 — migrado para `.privacy-link:hover` no CSS
 - [x] Adicionados prefixes `-webkit-user-select` (3 pontos) e `-webkit-backdrop-filter` (2 pontos) pra eliminar warnings do linter
