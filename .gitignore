@@ -32,3 +32,14 @@ feature-inventory.json
 
 # UX mocks (pasta de trabalho — validação visual antes de implementar)
 mocks/
+
+# Bitfocus Companion exports — contêm tokens/topologia, NUNCA commitar
+*.companionconfig
+*.companionconfig.gz
+companion-*_config*
+# segredos genéricos
+.env
+.env.*
+*token*.json
+credentials.json
+client_secret*.json
